@@ -26,7 +26,9 @@ limitations under the License.
 #define EXPORT_API __declspec(dllimport)
 #endif
 #else
+#if !defined(EXPORT_API)
 #define EXPORT_API
+#endif
 #endif
 //#include "api/resonance_audio_api.h"
 #include <stddef.h>  // size_t declaration.

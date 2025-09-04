@@ -17,7 +17,7 @@
  * -------------------------------------------------------------------
  */
 
-#include "wav/dep_wavwriter.h"
+#include "dep_wavwriter.h"
 
 #include <stdint.h>
 #include <stdio.h>

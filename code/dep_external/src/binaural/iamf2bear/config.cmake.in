@@ -1,0 +1,49 @@
+# iamf2bear-config.cmake.in
+# CMake configuration file for the iamf2bear library
+
+@PACKAGE_INIT@
+
+# Compute the installation prefix relative to this file
+get_filename_component(IAMF2BEAR_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+
+# Set the include directories
+set(IAMF2BEAR_INCLUDE_DIRS "@PACKAGE_CMAKE_INSTALL_PREFIX@/include/resonance")
+
+# Find required dependencies
+include(CMakeFindDependencyMacro)
+find_dependency(bear REQUIRED)
+find_dependency(Boost REQUIRED)
+
+# Include the exported targets
+if(NOT TARGET iamf2bear::iamf2bear)
+    include("${IAMF2BEAR_CMAKE_DIR}/iamf2bear-targets.cmake")
+endif()
+
+# Set the libraries variable for backwards compatibility
+set(IAMF2BEAR_LIBRARIES iamf2bear::iamf2bear)
+
+# Provide version information
+set(IAMF2BEAR_VERSION "@PROJECT_VERSION@")
+
+check_required_components(iamf2bear)
+
+# --- Patch missing configurations (e.g. MinSizeRel, RelWithDebInfo) ---
+# If target only exported Debug/Release, reuse Release for the others.
+foreach(full_tgt iamf2bear::iamf2bear) # adjust to match what you export
+  if(TARGET ${full_tgt})
+    # Prefer Release location, otherwise Debug
+    get_target_property(rel_loc ${full_tgt} IMPORTED_LOCATION_RELEASE)
+    if(NOT rel_loc)
+      get_target_property(rel_loc ${full_tgt} IMPORTED_LOCATION_DEBUG)
+    endif()
+    if(rel_loc)
+      foreach(cfg RELWITHDEBINFO MINSIZEREL)
+        if(NOT DEFINED IMPORTED_LOCATION_${cfg})
+          set_target_properties(${full_tgt} PROPERTIES
+            IMPORTED_LOCATION_${cfg} "${rel_loc}"
+          )
+        endif()
+      endforeach()
+    endif()
+  endif()
+endforeach()

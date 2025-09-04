@@ -1,0 +1,47 @@
+# wavwriter-config.cmake.in
+# CMake configuration file for the wavwriter library
+
+@PACKAGE_INIT@
+
+# Compute the installation prefix relative to this file
+get_filename_component(WAVWRITER_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+
+# Set the include directories
+set(WAVWRITER_INCLUDE_DIRS "@PACKAGE_CMAKE_INSTALL_PREFIX@/include/resonance")
+
+# Find required dependencies
+include(CMakeFindDependencyMacro)
+
+# Include the exported targets
+if(NOT TARGET wavwriter::wavwriter)
+    include("${WAVWRITER_CMAKE_DIR}/wavwriter-targets.cmake")
+endif()
+
+# Set the libraries variable for backwards compatibility
+set(WAVWRITER_LIBRARIES wavwriter::wavwriter)
+
+# Provide version information
+set(WAVWRITER_VERSION "@PROJECT_VERSION@")
+
+check_required_components(wavwriter)
+
+# --- Patch missing configurations (e.g. MinSizeRel, RelWithDebInfo) ---
+# If target only exported Debug/Release, reuse Release for the others.
+foreach(full_tgt wavwriter::wavwriter) # adjust to match what you export
+  if(TARGET ${full_tgt})
+    # Prefer Release location, otherwise Debug
+    get_target_property(rel_loc ${full_tgt} IMPORTED_LOCATION_RELEASE)
+    if(NOT rel_loc)
+      get_target_property(rel_loc ${full_tgt} IMPORTED_LOCATION_DEBUG)
+    endif()
+    if(rel_loc)
+      foreach(cfg RELWITHDEBINFO MINSIZEREL)
+        if(NOT DEFINED IMPORTED_LOCATION_${cfg})
+          set_target_properties(${full_tgt} PROPERTIES
+            IMPORTED_LOCATION_${cfg} "${rel_loc}"
+          )
+        endif()
+      endforeach()
+    endif()
+  endif()
+endforeach()

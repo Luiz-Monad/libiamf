@@ -25,9 +25,6 @@ This software module is out of scope and not part of the IAMF Final Deliverable.
 #include "ae_rdr.h"
 
 #if ENABLE_MULTICHANNEL_TO_BINAURAL
-#if defined(_WIN32)
-#pragma comment(lib, "iamf2bear.lib")
-#endif
 #include "bear/iamf_bear_api.h"
 // Multichannel to Binaural Renderer(BEAR)
 void IAMF_element_renderer_init_M2B(binaural_filter_t* binaural_f,

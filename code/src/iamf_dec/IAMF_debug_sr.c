@@ -21,7 +21,7 @@
 #include <stdio.h>
 
 #include "IAMF_utils.h"
-#include "wav/dep_wavwriter.h"
+#include "dep_wavwriter.h"
 #define N_AUDIO_STREAM 10
 
 static void ia_decoder_plane2stride_out_float(void *dst, const float *src,

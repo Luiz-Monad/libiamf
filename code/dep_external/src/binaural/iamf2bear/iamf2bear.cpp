@@ -17,7 +17,7 @@
  * @date Created 03/03/2023
  **/
 #define _CRT_SECURE_NO_WARNINGS
-#define DLL_EXPORTS
+// #define DLL_EXPORTS
 
 #if defined(_WIN32)
 #include <windows.h>

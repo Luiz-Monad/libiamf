@@ -1,0 +1,10 @@
+.build
+3rd/
+bin/
+config/
+cmake/
+include/
+lib/
+out/
+python/
+vcpkg_installed/

@@ -7,7 +7,7 @@
 get_filename_component(WAVWRITER_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
 
 # Set the include directories
-set(WAVWRITER_INCLUDE_DIRS "@PACKAGE_CMAKE_INSTALL_PREFIX@/include/resonance")
+set(WAVWRITER_INCLUDE_DIRS "@PACKAGE_CMAKE_INSTALL_PREFIX@/include")
 
 # Find required dependencies
 include(CMakeFindDependencyMacro)

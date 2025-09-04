@@ -15,13 +15,8 @@ include_directories(${Boost_INCLUDE_DIRS})
 
 find_package(bear REQUIRED)
 
-if(BUILD_SHARED_LIBS)
-  add_library(${PROJECT_NAME} SHARED iamf2bear.cpp)
-  target_link_libraries (${PROJECT_NAME} bear::bear)
-else()
-  add_library(${PROJECT_NAME} STATIC iamf2bear.cpp)
-  target_link_libraries (${PROJECT_NAME} bear::bear)
-endif()
+add_library(${PROJECT_NAME} iamf2bear.cpp)
+target_link_libraries(${PROJECT_NAME} PUBLIC bear::bear)
 
 # Create an alias target for namespaced usage
 add_library(iamf2bear::iamf2bear ALIAS ${PROJECT_NAME})

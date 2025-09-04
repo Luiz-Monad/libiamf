@@ -1,25 +1,27 @@
-# iamf2resonance-config.cmake.in
-# CMake configuration file for the iamf2resonance library
-
 @PACKAGE_INIT@
 
-# Find required dependencies
 include(CMakeFindDependencyMacro)
-find_dependency(ResonanceAudio REQUIRED)
 
-# Include the exported targets
-if(NOT TARGET iamf2resonance::iamf2resonance)
-    include("${CMAKE_CURRENT_LIST_DIR}/iamf2resonance-targets.cmake")
+# Always required
+find_dependency(wavwriter REQUIRED)
+
+# Optional features
+if(@MULTICHANNEL_BINAURALIZER@)
+  find_dependency(iamf2resonance REQUIRED)
 endif()
 
-# Set the libraries variable for backwards compatibility
-set(IAMF2RESONANCE_LIBRARIES iamf2resonance::iamf2resonance)
+if(@HOA_BINAURALIZER@)
+  find_dependency(iamf2bear REQUIRED)
+endif()
 
-check_required_components(iamf2resonance)
+# Load targets
+if(NOT TARGET iamf::iamf)
+    include("${CMAKE_CURRENT_LIST_DIR}/iamf-targets.cmake")
+endif()
 
 # --- Patch missing configurations (e.g. MinSizeRel, RelWithDebInfo) ---
 # If target only exported Debug/Release, reuse Release for the others.
-foreach(full_tgt iamf2resonance::iamf2resonance) # adjust to match what you export
+foreach(full_tgt iamf::iamf) # adjust to match what you export
   if(TARGET ${full_tgt})
     # Prefer Release location, otherwise Debug
     get_target_property(rel_loc ${full_tgt} IMPORTED_LOCATION_RELEASE)

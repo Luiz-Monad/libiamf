@@ -7,18 +7,15 @@ SET(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(BUILD_SHARED_LIBS "Build shared library" ON)
 
+set(RESONANCE_LIB_TYPE "shared" CACHE STRING "RESONANCE library type to link against")
+
 set(EXTERNAL_LIB_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/lib")
 set(EXTERNAL_INCLUDE_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 find_package(ResonanceAudio REQUIRED)
 
-if(BUILD_SHARED_LIBS)
-  add_library(${PROJECT_NAME} SHARED iamf2resonance.cc)
-  target_link_libraries (${PROJECT_NAME} ResonanceAudio::ResonanceAudioShared)
-else()
-  add_library(${PROJECT_NAME} STATIC iamf2resonance.cc)
-  target_link_libraries (${PROJECT_NAME} ResonanceAudio::ResonanceAudioStatic)
-endif()
+add_library(${PROJECT_NAME} iamf2resonance.cc)
+target_link_libraries(${PROJECT_NAME} PUBLIC ResonanceAudio::ResonanceAudio${RESONANCE_LIB_TYPE})
 
 # Create an alias target for namespaced usage
 add_library(iamf2resonance::iamf2resonance ALIAS ${PROJECT_NAME})

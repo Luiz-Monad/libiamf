@@ -31,9 +31,7 @@
 #define EXPORT_API __declspec(dllimport)
 #endif
 #else
-#if !defined(EXPORT_API)
 #define EXPORT_API
-#endif
 #endif
 
 #ifdef __cplusplus

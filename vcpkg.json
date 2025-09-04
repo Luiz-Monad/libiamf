@@ -1,0 +1,84 @@
+{
+  "name": "iamf",
+  "version": "0.0.1",
+  "description": "IAMF",
+  "builtin-baseline": "96ff71a4a601bbef4389a6fcfab7a1ca01b9f5f3",
+  "dependencies": [
+    {
+      "name": "boost-asio",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-atomic",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-chrono",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-date-time",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-filesystem",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-format",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-graph",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-math",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-program-options",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-property-tree",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-range",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-regex",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-spirit",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-system",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-test",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-thread",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "boost-timer",
+      "version>=": "1.88.0"
+    },
+    {
+      "name": "nlohmann-json",
+      "version>=": "3.12.0"
+    },
+    {
+      "name": "eigen3",
+      "version>=": "3.4.1-250818"
+    }
+  ]
+}

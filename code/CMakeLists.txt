@@ -10,8 +10,6 @@ option(BUILD_SHARED_LIBS "Build shared library" ON)
 
 set(CODEC_LIB_DIR  "${PROJECT_SOURCE_DIR}/dep_codecs/lib")
 set(CODEC_INCLUDE_DIR  "${PROJECT_SOURCE_DIR}/dep_codecs/include")
-set(EXTER_LIB_DIR  "${PROJECT_SOURCE_DIR}/dep_external/lib")
-set(EXTER_INCLUDE_DIR  "${PROJECT_SOURCE_DIR}/dep_external/include")
 
 option(SUPPORT_VERIFIER "Output vlogging file" OFF)
 if (SUPPORT_VERIFIER)
@@ -92,7 +90,6 @@ aux_source_directory (src/iamf_dec/pcm DIR_IAMF_DEC_PCM)
 
 include_directories(
     ${CODEC_INCLUDE_DIR}
-    ${EXTER_INCLUDE_DIR}
     ${PROJECT_SOURCE_DIR}/src/common
     ${PROJECT_SOURCE_DIR}/src/iamf_dec
     ${PROJECT_SOURCE_DIR}/src/iamf_dec/arch
@@ -106,16 +103,11 @@ link_directories (
     ${CODEC_LIB_DIR}
 )
 
-if(MULTICHANNEL_BINAURALIZER OR HOA_BINAURALIZER)
-link_directories(
-  ${EXTER_LIB_DIR}/binaural
-)
-endif()
 
 if(BUILD_SHARED_LIBS)
   add_library(${PROJECT_NAME} SHARED ${DIR_DEP_EXTERNAL_WAV} ${DIR_IAMF_COMMON}
-    ${DIR_IAMF_DEC_OPUS} ${DIR_IAMF_DEC_AAC} ${DIR_IAMF_DEC_FLAC} ${DIR_IAMF_DEC_PCM} ${DIR_IAMF_DEC}
-    ${DIR_IAMF_DEC_ARCH} ${DIR_IAMF_DEC_ARCH_ARM} ${DIR_IAMF_DEC_ARCH_X86})
+    ${DIR_IAMF_DEC_OPUS} ${DIR_IAMF_DEC_AAC} ${DIR_IAMF_DEC_FLAC} ${DIR_IAMF_DEC_PCM} 
+    ${DIR_IAMF_DEC} ${DIR_IAMF_DEC_ARCH} ${DIR_IAMF_DEC_ARCH_ARM} ${DIR_IAMF_DEC_ARCH_X86})
 
   if(NOT ${find_opus} STREQUAL "find_opus-NOTFOUND")
     target_link_libraries (${PROJECT_NAME} opus)
@@ -129,28 +121,32 @@ if(BUILD_SHARED_LIBS)
     target_link_libraries (${PROJECT_NAME} FLAC)
   endif()
 
-  if(MULTICHANNEL_BINAURALIZER)
-    target_link_libraries (${PROJECT_NAME} iamf2bear)
-  endif()
-  if(HOA_BINAURALIZER)
-    target_link_libraries (${PROJECT_NAME} iamf2resonance)
-  endif()
   target_link_libraries (${PROJECT_NAME} m)
 else()
   add_library(${PROJECT_NAME} STATIC ${DIR_DEP_EXTERNAL_WAV} ${DIR_IAMF_COMMON}
-    ${DIR_IAMF_DEC_OPUS} ${DIR_IAMF_DEC_AAC} ${DIR_IAMF_DEC_PCM}
-    ${DIR_IAMF_DEC_FLAC} ${DIR_IAMF_DEC} ${DIR_IAMF_DEC_ARCH} ${DIR_IAMF_DEC_ARCH_ARM}
-    ${DIR_IAMF_DEC_ARCH_X86})
+    ${DIR_IAMF_DEC_OPUS} ${DIR_IAMF_DEC_AAC} ${DIR_IAMF_DEC_FLAC} ${DIR_IAMF_DEC_PCM}
+    ${DIR_IAMF_DEC} ${DIR_IAMF_DEC_ARCH} ${DIR_IAMF_DEC_ARCH_ARM} ${DIR_IAMF_DEC_ARCH_X86})
 endif()
 
-
+if(MULTICHANNEL_BINAURALIZER)
+  find_package(iamf2resonance REQUIRED)
+  target_link_libraries(${PROJECT_NAME} iamf2resonance::iamf2resonance)
+endif()
+if(HOA_BINAURALIZER)
+  find_package(iamf2bear REQUIRED)
+  target_link_libraries(${PROJECT_NAME} iamf2bear::iamf2bear)
+endif()
+find_package(wavwriter REQUIRED)
+target_link_libraries(${PROJECT_NAME}
+    $<$<CONFIG:Debug>:wavwriter::wavwriter>
+)
 
 set(IAMF_PUBLIC_HEADER
     ${CMAKE_CURRENT_SOURCE_DIR}/include/IAMF_decoder.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/IAMF_defines.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/vlogging_tool_sr.h
     )
-set_target_properties(iamf PROPERTIES PUBLIC_HEADER "${IAMF_PUBLIC_HEADER}")
+set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "${IAMF_PUBLIC_HEADER}")
 
 
 set(prefix ${CMAKE_INSTALL_PREFIX})
@@ -175,4 +171,3 @@ if(MULTICHANNEL_BINAURALIZER OR HOA_BINAURALIZER)
   install(DIRECTORY ${EXTER_LIB_DIR}/binaural
         DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
 endif()
-

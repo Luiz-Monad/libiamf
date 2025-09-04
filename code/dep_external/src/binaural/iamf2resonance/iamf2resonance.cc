@@ -18,7 +18,7 @@ limitations under the License.
 #include <cstdint>  // int16_t declaration.
 #define DLL_EXPORTS
 
-#include "resonance_audio_api.h"
+#include "resonance_audio/resonance_audio_api.h"
 #include "iamf_resonance_api.h"
 
 namespace vraudio {

@@ -1,7 +1,6 @@
 .build
 3rd/
 bin/
-cmake/
 code/dep_external/src/binaural/iamf2bear/vlc_build/
 code/dep_external/src/binaural/iamf2resonance/vlc_build/
 config/

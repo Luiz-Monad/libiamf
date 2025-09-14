@@ -6,6 +6,7 @@
 # Find required dependencies
 include(CMakeFindDependencyMacro)
 find_dependency(ResonanceAudio REQUIRED)
+find_dependency(Boost REQUIRED)
 
 # Include the exported targets
 if(NOT TARGET iamf2resonance::iamf2resonance)

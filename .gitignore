@@ -1,10 +1,13 @@
 .build
 3rd/
 bin/
-config/
 cmake/
+code/dep_external/src/binaural/iamf2bear/vlc_build/
+code/dep_external/src/binaural/iamf2resonance/vlc_build/
+config/
 include/
 lib/
 out/
 python/
 vcpkg_installed/
+vlc_build/

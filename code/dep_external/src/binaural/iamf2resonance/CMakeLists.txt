@@ -12,6 +12,9 @@ set(RESONANCE_LIB_TYPE "shared" CACHE STRING "RESONANCE library type to link aga
 set(EXTERNAL_LIB_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/lib")
 set(EXTERNAL_INCLUDE_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
+find_package(Boost REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+
 find_package(ResonanceAudio REQUIRED)
 
 add_library(${PROJECT_NAME} iamf2resonance.cc)
@@ -37,7 +40,7 @@ install(TARGETS ${PROJECT_NAME}
 install(EXPORT iamf2resonance-targets
   FILE iamf2resonance-targets.cmake
   NAMESPACE iamf2resonance::
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/iamf2resonance
 )
 
 # Configure package config file
@@ -45,7 +48,7 @@ include(CMakePackageConfigHelpers)
 configure_package_config_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/config.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/iamf2resonance-config.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/iamf2resonance
 )
 
 write_basic_package_version_file(
@@ -57,5 +60,5 @@ write_basic_package_version_file(
 install(FILES
   ${CMAKE_CURRENT_BINARY_DIR}/iamf2resonance-config.cmake
   ${CMAKE_CURRENT_BINARY_DIR}/iamf2resonance-config-version.cmake
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/iamf2resonance
 )

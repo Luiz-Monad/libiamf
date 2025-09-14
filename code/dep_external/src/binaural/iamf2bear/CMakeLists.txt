@@ -38,7 +38,7 @@ install(TARGETS ${PROJECT_NAME}
 install(EXPORT iamf2bear-targets
   FILE iamf2bear-targets.cmake
   NAMESPACE iamf2bear::
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/iamf2bear
 )
 
 # Configure package config file
@@ -46,7 +46,7 @@ include(CMakePackageConfigHelpers)
 configure_package_config_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/config.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/iamf2bear-config.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/iamf2bear
 )
 
 write_basic_package_version_file(
@@ -58,5 +58,5 @@ write_basic_package_version_file(
 install(FILES
   ${CMAKE_CURRENT_BINARY_DIR}/iamf2bear-config.cmake
   ${CMAKE_CURRENT_BINARY_DIR}/iamf2bear-config-version.cmake
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/iamf2bear
 )

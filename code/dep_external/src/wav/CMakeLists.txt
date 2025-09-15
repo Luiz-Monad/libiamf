@@ -10,11 +10,7 @@ option(BUILD_SHARED_LIBS "Build shared library" ON)
 set(EXTERNAL_LIB_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/lib")
 set(EXTERNAL_INCLUDE_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-if(BUILD_SHARED_LIBS)
-  add_library(${PROJECT_NAME} SHARED dep_wavwriter.c)
-else()
-  add_library(${PROJECT_NAME} STATIC dep_wavwriter.c)
-endif()
+add_library(${PROJECT_NAME} dep_wavwriter.c)
 
 # Create an alias target for namespaced usage
 add_library(wavwriter::wavwriter ALIAS ${PROJECT_NAME})

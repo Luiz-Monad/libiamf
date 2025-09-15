@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.30.0)
 project(iamf)
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 message(STATUS "Start build iamf")
@@ -18,6 +19,7 @@ option(CODEC_CAP "Codec capability check" ON)
 option(USE_PRECOMPILED_CODECS "Use precompiled codec libraries from dep_codecs" ON)
 option(MULTICHANNEL_BINAURALIZER "Enable multichannel binaural rendering" OFF)
 option(HOA_BINAURALIZER "Enable HOA binaural rendering" OFF)
+option(WAV_WRITER "Enable WavWriter codec" ON)
 
 if(SUPPORT_VERIFIER)
   message(STATUS "Output vlogging file")
@@ -55,21 +57,21 @@ if(USE_PRECOMPILED_CODECS)
   if(CODEC_CAP)
     find_library(find_opus NAMES opus PATHS ${CODEC_LIB_DIR} NO_DEFAULT_PATH)
     if(NOT find_opus)
-      message(WARNING "Opus library not found in precompiled dir")
+        message(WARNING "Opus library not found in precompiled dir")
     else()
       add_definitions(-DCONFIG_OPUS_CODEC)
     endif()
 
     find_library(find_aac NAMES fdk-aac PATHS ${CODEC_LIB_DIR} NO_DEFAULT_PATH)
     if(NOT find_aac)
-      message(WARNING "fdk-aac library not found in precompiled dir")
+        message(WARNING "fdk-aac library not found in precompiled dir")
     else()
       add_definitions(-DCONFIG_AAC_CODEC)
     endif()
 
     find_library(find_flac NAMES FLAC PATHS ${CODEC_LIB_DIR} NO_DEFAULT_PATH)
     if(NOT find_flac)
-      message(WARNING "FLAC library not found in precompiled dir")
+        message(WARNING "FLAC library not found in precompiled dir")
     else()
       add_definitions(-DCONFIG_FLAC_CODEC)
       if(WIN32)
@@ -93,7 +95,7 @@ else()
     find_package(FDKAAC QUIET)
     if(TARGET FDKAAC::fdk-aac)
       add_definitions(-DCONFIG_AAC_CODEC)
-      set(find_aac FDK-AAC::fdk-aac)
+      set(find_aac FDKAAC::fdk-aac)
     else()
       message(WARNING "FDK-AAC package not found")
     endif()
@@ -127,6 +129,11 @@ if(find_flac)
   aux_source_directory(src/iamf_dec/flac DIR_IAMF_DEC_FLAC)
 endif()
 aux_source_directory(src/iamf_dec/pcm DIR_IAMF_DEC_PCM)
+
+# Remove IAMF_debug_sr.c from the list when WAV_WRITER is OFF
+if(NOT WAV_WRITER)
+  list(REMOVE_ITEM DIR_IAMF_DEC src/iamf_dec/IAMF_debug_sr.c)
+endif()
 
 include_directories(
   ${CODEC_INCLUDE_DIR}
@@ -172,8 +179,10 @@ if(HOA_BINAURALIZER)
   find_package(iamf2bear REQUIRED)
   target_link_libraries(${PROJECT_NAME} PUBLIC iamf2bear::iamf2bear)
 endif()
-find_package(wavwriter REQUIRED)
-target_link_libraries(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:wavwriter::wavwriter>)
+if(WAV_WRITER)
+  find_package(wavwriter REQUIRED)
+  target_link_libraries(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:wavwriter::wavwriter>)
+endif()
 
 # Public headers
 set(IAMF_PUBLIC_HEADER

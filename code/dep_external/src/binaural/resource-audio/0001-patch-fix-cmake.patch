@@ -1,0 +1,219 @@
+From b185aa838e8923bff5b075227e7dd4293bbfbd2b Mon Sep 17 00:00:00 2001
+From: Luiz Felipe Stangarlin <luizfelipestang@gmail.com>
+Date: Thu, 4 Sep 2025 17:22:08 -0500
+Subject: [PATCH] patch: fix cmake
+
+---
+ CMakeLists.txt                                | 15 +--
+ resonance_audio/CMakeLists.txt                | 91 +++++++++++++++----
+ .../ResonanceAudio-config.cmake.in            | 33 +++++++
+ 3 files changed, 114 insertions(+), 25 deletions(-)
+ create mode 100644 resonance_audio/ResonanceAudio-config.cmake.in
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 6af0b3f..a5c23df 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -36,6 +36,7 @@ macro(use_cxx11)
+     set(CMAKE_CXX_STANDARD_REQUIRED on)
+ endmacro(use_cxx11)
+ 
++cmake_minimum_required(VERSION 3.31.0)
+ project(ResonanceAudio)
+ 
+ # Build options
+@@ -47,6 +48,7 @@ option(BUILD_WWISE_AUTHORING_PLUGIN "Build Resonance Audio WWise Authoring Plugi
+ option(BUILD_WWISE_SOUND_ENGINE_PLUGIN "Build Resonance Audio WWise Sound Engine Plugin." OFF)
+ option(BUILD_FMOD_PLUGIN "Build FMOD Resonance Audio Plugin" OFF)
+ option(BUILD_VST_MONITOR_PLUGIN "Build Resonance Audio VST Monitor Plugin" OFF)
++option(RA_USE_INTERNAL_EIGEN "should we use our own version of Eigen, or find one with find_package?" TRUE)
+ 
+ if (MSVC)
+     configure_msvc_runtime()
+@@ -60,11 +62,8 @@ elseif(ANDROID)
+     add_definitions(-DPLATFORM_ANDROID)
+ endif ()
+ 
+-cmake_minimum_required(VERSION 3.4.1)
+ set(CMAKE_COLOR_MAKEFILE ON)
+ 
+-set(INSTALL_DIR "${PROJECT_SOURCE_DIR}/install" CACHE PATH "Install path")
+-
+ set(RA_SOURCE_DIR ${PROJECT_SOURCE_DIR}/resonance_audio/)
+ 
+ use_cxx11()
+@@ -98,9 +97,13 @@ elseif (UNIX)
+ endif ()
+ 
+ # Add Eigen3.
+-set(EIGEN3_DIR "${PROJECT_SOURCE_DIR}/third_party/eigen/" CACHE PATH "Path to eigen3 library")
+-set(EIGEN3_INCLUDE_DIR ${EIGEN3_DIR})
+-add_definitions(-DEIGEN_MPL2_ONLY)
++if (RA_USE_INTERNAL_EIGEN)
++    set(EIGEN3_DIR "${PROJECT_SOURCE_DIR}/third_party/eigen/" CACHE PATH "Path to eigen3 library")
++    set(EIGEN3_INCLUDE_DIR ${EIGEN3_DIR})
++    add_definitions(-DEIGEN_MPL2_ONLY)
++else()
++    find_package(Eigen3 3.4 REQUIRED)
++endif()
+ 
+ include_directories(${PROJECT_SOURCE_DIR})
+ include_directories(${EIGEN3_INCLUDE_DIR})
+diff --git a/resonance_audio/CMakeLists.txt b/resonance_audio/CMakeLists.txt
+index b52e625..9f7c24e 100644
+--- a/resonance_audio/CMakeLists.txt
++++ b/resonance_audio/CMakeLists.txt
+@@ -215,31 +215,84 @@ target_include_directories(ResonanceAudioObj PRIVATE ${PROJECT_SOURCE_DIR}/reson
+ target_include_directories(ResonanceAudioObj PRIVATE ${EIGEN3_INCLUDE_DIR}/)
+ target_include_directories(ResonanceAudioObj PRIVATE ${PFFFT_INCLUDE_DIR}/)
+ 
+-
+ if (BUILD_RESONANCE_AUDIO_API)
++    include(GNUInstallDirs)
++
++    set (RA_TARGETS)
++
+     # Build shared library
+-    add_library(ResonanceAudioShared SHARED $<TARGET_OBJECTS:ResonanceAudioObj>
+-            $<TARGET_OBJECTS:SadieHrtfsObj>
+-            $<TARGET_OBJECTS:PffftObj>)
++    if (BUILD_SHARED_LIBS)
++        add_library(ResonanceAudioShared SHARED 
++                $<TARGET_OBJECTS:ResonanceAudioObj>
++                $<TARGET_OBJECTS:SadieHrtfsObj>
++                $<TARGET_OBJECTS:PffftObj>)
++        list( APPEND RA_TARGETS ResonanceAudioShared )
++    endif()
+ 
+     # Build static library
+-    add_library(ResonanceAudioStatic STATIC $<TARGET_OBJECTS:ResonanceAudioObj>
+-            $<TARGET_OBJECTS:SadieHrtfsObj>
+-            $<TARGET_OBJECTS:PffftObj>)
++    if (NOT BUILD_SHARED_LIBS)
++        add_library(ResonanceAudioStatic STATIC 
++                $<TARGET_OBJECTS:ResonanceAudioObj>
++                $<TARGET_OBJECTS:SadieHrtfsObj>
++                $<TARGET_OBJECTS:PffftObj>)
++        list( APPEND RA_TARGETS ResonanceAudioStatic )
++    endif()
++    
++    # Configure include directories for all targets
++    foreach(_target ${RA_TARGETS})
+ 
+-    set(RA_INSTALL_DIR "${INSTALL_DIR}/resonance_audio/")
+-    install(TARGETS ResonanceAudioStatic ResonanceAudioShared
+-            LIBRARY DESTINATION ${RA_INSTALL_DIR}/lib
+-            ARCHIVE DESTINATION ${RA_INSTALL_DIR}/lib
+-            RUNTIME DESTINATION ${RA_INSTALL_DIR}/lib
+-            PUBLIC_HEADER DESTINATION ${RA_INSTALL_DIR}/include)
+-
+-    set(RA_PUBLIC_HEADERS
++        set_property(TARGET ${_target} PROPERTY PUBLIC_HEADER 
+             ${RA_SOURCE_DIR}/api/binaural_surround_renderer.h
+             ${RA_SOURCE_DIR}/api/resonance_audio_api.h
+-            )
+-    install(FILES ${RA_PUBLIC_HEADERS}
+-            DESTINATION ${RA_INSTALL_DIR}/include)
++        )
++
++        target_include_directories(
++            ${_target}
++            PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
++                   $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
++                   $<INSTALL_INTERFACE:include>
++            PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
++
++    endforeach()
++
++    # Install library and headers
++    install(
++        TARGETS ${RA_TARGETS}
++        EXPORT ResonanceAudioTargets
++        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
++        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
++        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
++        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/resonance_audio/
++    )
++
++    # Export targets for find_package()
++    install(
++        EXPORT ResonanceAudioTargets
++        FILE ResonanceAudioTargets.cmake
++        NAMESPACE ResonanceAudio::
++        DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
++    )
++
++    # Configure package config file
++    include(CMakePackageConfigHelpers)
++    configure_package_config_file(
++        ${CMAKE_SOURCE_DIR}/resonance_audio/ResonanceAudio-config.cmake.in
++        ${CMAKE_BINARY_DIR}/cmake/ResonanceAudio-config.cmake
++        INSTALL_DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
++    )
++
++    write_basic_package_version_file(
++        ${CMAKE_BINARY_DIR}/cmake/ResonanceAudio-config-version.cmake
++        VERSION 1.0.0
++        COMPATIBILITY AnyNewerVersion
++    )
++
++    install(FILES
++        ${CMAKE_BINARY_DIR}/cmake/ResonanceAudio-config.cmake
++        ${CMAKE_BINARY_DIR}/cmake/ResonanceAudio-config-version.cmake
++        DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
++    )
++
+ endif (BUILD_RESONANCE_AUDIO_API)
+ 
+ 
+@@ -321,7 +374,7 @@ if (BUILD_RESONANCE_AUDIO_TESTS)
+ 
+     if (NOT WIN32)
+         find_package(Threads REQUIRED)
+-        target_link_libraries(ResonanceAudioUnitTests pthread)
++        target_link_libraries(ResonanceAudioUnitTests PRIVATE pthread)
+     endif (NOT WIN32)
+ 
+     add_test(NAME runResonanceAudioUnitTest COMMAND $<TARGET_FILE:ResonanceAudioUnitTests>)
+diff --git a/resonance_audio/ResonanceAudio-config.cmake.in b/resonance_audio/ResonanceAudio-config.cmake.in
+new file mode 100644
+index 0000000..d667f05
+--- /dev/null
++++ b/resonance_audio/ResonanceAudio-config.cmake.in
+@@ -0,0 +1,33 @@
++@PACKAGE_INIT@
++
++include("${CMAKE_CURRENT_LIST_DIR}/ResonanceAudioTargets.cmake")
++
++set( RA_TARGETS @RA_TARGETS@ )
++
++foreach(_target ${RA_TARGETS})
++  check_required_components(${_target})
++endforeach()
++
++# --- Patch missing configurations (e.g. MinSizeRel, RelWithDebInfo) ---
++# If target only exported Debug/Release, reuse Release for the others.
++foreach(tgt ResonanceAudio)
++  foreach(var_suffix Static Shared) # adjust to match what you export
++    set(full_tgt ResonanceAudio::${tgt}${var_suffix})
++    if(TARGET ${full_tgt})
++      # Prefer Release location, otherwise Debug
++      get_target_property(rel_loc ${full_tgt} IMPORTED_LOCATION_RELEASE)
++      if(NOT rel_loc)
++        get_target_property(rel_loc ${full_tgt} IMPORTED_LOCATION_DEBUG)
++      endif()
++      if(rel_loc)
++        foreach(cfg RELWITHDEBINFO MINSIZEREL)
++          if(NOT DEFINED IMPORTED_LOCATION_${cfg})
++            set_target_properties(${full_tgt} PROPERTIES
++              IMPORTED_LOCATION_${cfg} "${rel_loc}"
++            )
++          endif()
++        endforeach()
++      endif()
++    endif()
++  endforeach()
++endforeach()
+-- 
+2.46.0.windows.1
+

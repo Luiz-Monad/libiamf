@@ -1,0 +1,44 @@
+From 619f1657d55a1e06adafb432c428a0f521afc6a7 Mon Sep 17 00:00:00 2001
+From: Luiz Felipe Stangarlin <luizfelipestang@gmail.com>
+Date: Fri, 5 Sep 2025 16:10:01 -0500
+Subject: [PATCH 3/3] patch: fix cmake
+
+---
+ visr_bear/cmake/bear-config.cmake.in | 2 ++
+ visr_bear/src/CMakeLists.txt         | 7 +++----
+ 2 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/visr_bear/cmake/bear-config.cmake.in b/visr_bear/cmake/bear-config.cmake.in
+index afa2d95..55b92b3 100644
+--- a/visr_bear/cmake/bear-config.cmake.in
++++ b/visr_bear/cmake/bear-config.cmake.in
+@@ -7,6 +7,8 @@ if(NOT TARGET bear::bear)
+     include(${CMAKE_CURRENT_LIST_DIR}/bear-targets.cmake)
+ endif()
+ 
++check_required_components(bear)
++
+ # --- Patch missing configurations (e.g. MinSizeRel, RelWithDebInfo) ---
+ # If target only exported Debug/Release, reuse Release for the others.
+ foreach(full_tgt bear::bear ear) # adjust to match what you export
+diff --git a/visr_bear/src/CMakeLists.txt b/visr_bear/src/CMakeLists.txt
+index 591c526..1cef90c 100644
+--- a/visr_bear/src/CMakeLists.txt
++++ b/visr_bear/src/CMakeLists.txt
+@@ -84,10 +84,9 @@ target_include_directories(
+          $<INSTALL_INTERFACE:include>
+   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+ 
+-set_property(
+-  TARGET bear
+-  PROPERTY PUBLIC_HEADER "${CMAKE_SOURCE_DIR}/include/bear/api.hpp"
+-           "${CMAKE_SOURCE_DIR}/include/bear/variable_block_size.hpp")
++set_property(TARGET bear PROPERTY PUBLIC_HEADER 
++    "${CMAKE_SOURCE_DIR}/include/bear/api.hpp"
++    "${CMAKE_SOURCE_DIR}/include/bear/variable_block_size.hpp")
+ 
+ # In order to create Python wrappers, we set the code to be position-independent
+ # even if we build a static library.
+-- 
+2.46.0.windows.1
+

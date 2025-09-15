@@ -1,0 +1,19 @@
+From 1c33dd0f13d29c1abb9f91b84cb6c6ac1573b17c Mon Sep 17 00:00:00 2001
+From: Luiz Felipe Stangarlin <luizfelipestang@gmail.com>
+Date: Thu, 4 Sep 2025 17:25:02 -0500
+Subject: [PATCH 2/3] patch: submodule pointer
+
+---
+ visr_bear/submodules/libear | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/visr_bear/submodules/libear b/visr_bear/submodules/libear
+index 10e0717..1e2ff61 160000
+--- a/visr_bear/submodules/libear
++++ b/visr_bear/submodules/libear
+@@ -1 +1 @@
+-Subproject commit 10e071784d7f033fee8e456032458f10dd1da174
++Subproject commit 1e2ff61e679209b30052a18c71ff76f6d24a8a42
+-- 
+2.46.0.windows.1
+

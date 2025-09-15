@@ -1,0 +1,195 @@
+From 4c8f926bf18650dce28a2e1fc72a579e211653e6 Mon Sep 17 00:00:00 2001
+From: Luiz Felipe Stangarlin <luizfelipestang@gmail.com>
+Date: Thu, 4 Sep 2025 17:24:07 -0500
+Subject: [PATCH 1/2] patch: update boost
+
+---
+ src/librcl/CMakeLists.txt               |  1 +
+ src/librcl/udp_receiver.cpp             | 20 +++++++++-------
+ src/librcl/udp_sender.cpp               | 32 +++++++++++++------------
+ src/libsignalflowspython/CMakeLists.txt |  1 +
+ 4 files changed, 30 insertions(+), 24 deletions(-)
+
+diff --git a/src/librcl/CMakeLists.txt b/src/librcl/CMakeLists.txt
+index 1728f34..b5639d2 100644
+--- a/src/librcl/CMakeLists.txt
++++ b/src/librcl/CMakeLists.txt
+@@ -103,6 +103,7 @@ foreach(LIB_TYPE ${VISR_BUILD_LIBRARY_TYPES} )
+   target_link_libraries( rcl_${LIB_TYPE} PUBLIC objectmodel_${LIB_TYPE} )
+   target_link_libraries( rcl_${LIB_TYPE} PUBLIC rbbl_${LIB_TYPE} )
+   target_link_libraries( rcl_${LIB_TYPE} PUBLIC efl_${LIB_TYPE} )
++  target_link_libraries( rcl_${LIB_TYPE} PRIVATE Boost::asio )
+   target_link_libraries( rcl_${LIB_TYPE} PRIVATE Boost::boost )
+   target_link_libraries( rcl_${LIB_TYPE} PRIVATE Boost::filesystem )
+   target_link_libraries( rcl_${LIB_TYPE} PRIVATE Boost::system )
+diff --git a/src/librcl/udp_receiver.cpp b/src/librcl/udp_receiver.cpp
+index 88b4a1f..fc9270a 100644
+--- a/src/librcl/udp_receiver.cpp
++++ b/src/librcl/udp_receiver.cpp
+@@ -6,7 +6,7 @@
+ 
+ #include <boost/array.hpp>
+ #include <boost/asio/placeholders.hpp>
+-#include <boost/asio/io_service.hpp>
++#include <boost/asio/io_context.hpp>
+ #include <boost/asio/ip/udp.hpp>
+ #include <boost/bind/bind.hpp>
+ #ifndef VISR_DISABLE_THREADS
+@@ -44,15 +44,15 @@ private:
+     Mode const mMode;
+ 
+     /**
+-    * Pointer to the either internally or externally provided externally provided boost::asio::io_service object.
++    * Pointer to the either internally or externally provided externally provided boost::asio::io_context object.
+     */
+-    boost::asio::io_service* mIoService;
++    boost::asio::io_context* mIoService;
+ 
+     /**
+-    * An actual io_service object owned by this component, which is allocated in the modes Synchronous or Asynchronous,
++    * An actual io_context object owned by this component, which is allocated in the modes Synchronous or Asynchronous,
+     * but not for ExternalServiceObject.
+     */
+-    std::unique_ptr<boost::asio::io_service> mIoServiceInstance;
++    std::unique_ptr<boost::asio::io_context> mIoServiceInstance;
+ 
+     std::unique_ptr<boost::asio::ip::udp::socket> mSocket;
+ 
+@@ -60,7 +60,7 @@ private:
+ 
+     boost::array<char, cMaxMessageLength> mReceiveBuffer;
+ 
+-    std::unique_ptr<boost::asio::io_service::work> mIoServiceWork;
++    std::unique_ptr<decltype(boost::asio::make_work_guard(std::declval<boost::asio::io_context&>()))> mIoServiceWork;
+ 
+     /**
+     * Internal queue of messages received asynchronously. They will be copied into the output
+@@ -101,7 +101,7 @@ UdpReceiver::Impl::Impl( std::size_t port,
+  : mMode( mode )
+ {
+     using boost::asio::ip::udp;
+-    mIoServiceInstance.reset(new boost::asio::io_service());
++    mIoServiceInstance.reset(new boost::asio::io_context());
+     mIoService = mIoServiceInstance.get();
+ 
+     if (mMode == Mode::Synchronous)
+@@ -110,7 +110,9 @@ UdpReceiver::Impl::Impl( std::size_t port,
+     }
+     else
+     {
+-        mIoServiceWork.reset(new  boost::asio::io_service::work(*mIoService));
++        mIoServiceWork.reset(new boost::asio::executor_work_guard<boost::asio::io_context::executor_type>(
++            mIoService->get_executor()
++        ));
+     }
+     mSocket.reset(new udp::socket(*mIoService));
+     boost::system::error_code ec;
+@@ -134,7 +136,7 @@ UdpReceiver::Impl::Impl( std::size_t port,
+ #else
+     if (mMode == Mode::Asynchronous)
+     {
+-        mServiceThread.reset(new boost::thread(boost::bind(&boost::asio::io_service::run, mIoService)));
++        mServiceThread.reset(new boost::thread(boost::bind(&boost::asio::io_context::run, mIoService)));
+     }
+ #endif // VISR_DISABLE_THREADS
+ }
+diff --git a/src/librcl/udp_sender.cpp b/src/librcl/udp_sender.cpp
+index 6235fec..5ddd8e6 100644
+--- a/src/librcl/udp_sender.cpp
++++ b/src/librcl/udp_sender.cpp
+@@ -6,7 +6,7 @@
+ 
+ #include <boost/array.hpp>
+ #include <boost/asio/placeholders.hpp>
+-#include <boost/asio/io_service.hpp>
++#include <boost/asio/io_context.hpp>
+ #include <boost/asio/ip/udp.hpp>
+ #include <boost/bind/bind.hpp>
+ #ifndef VISR_DISABLE_THREADS
+@@ -49,21 +49,21 @@ private:
+     Mode mMode;
+ 
+     /**
+-    * Pointer to the either internally or externally provided externally provided boost::asio::io_service object.
++    * Pointer to the either internally or externally provided externally provided boost::asio::io_context object.
+     */
+-    boost::asio::io_service* mIoService;
++    boost::asio::io_context* mIoService;
+ 
+     /**
+-    * An actual io_service object owned by this component, which is allocated in the modes Synchronous or Asynchronous,
++    * An actual io_context object owned by this component, which is allocated in the modes Synchronous or Asynchronous,
+     * but not for ExternalServiceObject.
+     */
+-    std::unique_ptr<boost::asio::io_service> mIoServiceInstance;
++    std::unique_ptr<boost::asio::io_context> mIoServiceInstance;
+ 
+     std::unique_ptr<boost::asio::ip::udp::socket> mSocket;
+ 
+     boost::asio::ip::udp::endpoint mRemoteEndpoint;
+ 
+-    std::unique_ptr<boost::asio::io_service::work> mIoServiceWork;
++    std::unique_ptr<decltype(boost::asio::make_work_guard(std::declval<boost::asio::io_context&>()))> mIoServiceWork;
+ 
+     /**
+     * Internal queue of messages received asynchronously. They will be copied into the output
+@@ -106,25 +106,27 @@ UdpSender::Impl::Impl(UdpSender & parent,
+ {
+     using boost::asio::ip::udp;
+     mMode = mode;
+-    mIoServiceInstance.reset(new boost::asio::io_service());
++    mIoServiceInstance.reset(new boost::asio::io_context());
+     mIoService = mIoServiceInstance.get();
+ 
+     if( mMode == Mode::Synchronous )
+     {
+-      mIoServiceWork.reset();
++        mIoServiceWork.reset();
+     }
+     else
+     {
+-      mIoServiceWork.reset(new  boost::asio::io_service::work(*mIoService));
++        mIoServiceWork.reset(new boost::asio::executor_work_guard<boost::asio::io_context::executor_type>(
++            mIoService->get_executor()
++        ));
+     }
+ 
+-    udp::resolver resolver(*mIoService);
+-    udp::resolver::query query(udp::v4(),
++    boost::asio::ip::udp::resolver resolver(mIoService->get_executor());
++    auto results = resolver.resolve(udp::v4(),
+         receiverAddress,
+         std::to_string(receiverPort),
+-        udp::resolver::query::flags::passive); /* Override the default values for the flag parameter which includes "address_configured"
+-                                               that requires a network conection apart from loopback device. */
+-    mRemoteEndpoint = *resolver.resolve(query);
++        boost::asio::ip::resolver_base::passive); /* Override the default values for the flag parameter which includes "address_configured"
++                                                  that requires a network connection apart from loopback device. */
++    mRemoteEndpoint = results.begin()->endpoint();
+     // Debug output:
+     // std::cout << "Remote endpoint: " << mRemoteEndpoint.address().to_string() << ":" << mRemoteEndpoint.port() << std::endl;
+     if (mRemoteEndpoint.port() != static_cast<unsigned short>(receiverPort))
+@@ -140,7 +142,7 @@ UdpSender::Impl::Impl(UdpSender & parent,
+ #else
+     if (mMode == Mode::Asynchronous)
+     {
+-        mServiceThread.reset(new boost::thread(boost::bind(&boost::asio::io_service::run, mIoService)));
++        mServiceThread.reset(new boost::thread(boost::bind(&boost::asio::io_context::run, mIoService)));
+     }
+ #endif
+ }
+diff --git a/src/libsignalflowspython/CMakeLists.txt b/src/libsignalflowspython/CMakeLists.txt
+index 843b13e..3051787 100644
+--- a/src/libsignalflowspython/CMakeLists.txt
++++ b/src/libsignalflowspython/CMakeLists.txt
+@@ -50,6 +50,7 @@ foreach(LIB_TYPE ${VISR_BUILD_LIBRARY_TYPES} )
+   endif( BUILD_PYTHON_BINDINGS )
+ 
+   target_link_libraries( signalflowspython_${LIB_TYPE} PRIVATE Boost::system )
++  target_link_libraries( signalflowspython_${LIB_TYPE} PRIVATE Boost::format )
+   if( NOT Boost_USE_STATIC_LIBS )
+     target_compile_definitions( signalflowspython_${LIB_TYPE} PUBLIC -DBOOST_ALL_DYN_LINK )
+   endif( NOT Boost_USE_STATIC_LIBS )
+-- 
+2.46.0.windows.1
+

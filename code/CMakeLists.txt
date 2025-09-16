@@ -212,7 +212,7 @@ install(TARGETS ${PROJECT_NAME}
 install(EXPORT iamf-targets
   FILE iamf-targets.cmake
   NAMESPACE iamf::
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake/iamf
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/iamf
 )
 
 # Config + version files
@@ -220,7 +220,7 @@ include(CMakePackageConfigHelpers)
 configure_package_config_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/config.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/iamf-config.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake/iamf
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/iamf
 )
 
 write_basic_package_version_file(
@@ -232,5 +232,11 @@ write_basic_package_version_file(
 install(FILES
   ${CMAKE_CURRENT_BINARY_DIR}/iamf-config.cmake
   ${CMAKE_CURRENT_BINARY_DIR}/iamf-config-version.cmake
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake/iamf
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/iamf
+)
+
+include("cmake/export_pc.cmake")
+target_export_pc(iamf 1.0.0
+  ${CMAKE_CURRENT_SOURCE_DIR}/iamf.pc.in
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
 )

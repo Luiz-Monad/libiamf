@@ -1,0 +1,129 @@
+name: Mirror and Fix libiamf
+
+on:
+  schedule:
+    # Runs at 00:00, only on Sunday.
+    - cron: '0 0 * * 0'
+
+  push:
+    branches:
+      - master
+
+  workflow_dispatch:
+    inputs:
+      debug:
+        description: 'Run with debug'
+        required: false
+        default: 'false'
+        type: boolean
+      dry_run:
+        description: 'Run in dry-run mode (no push)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  libiamf-mirror-and-fix:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Git SSH
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Install git-filter-repo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git python3
+          curl -L https://raw.githubusercontent.com/newren/git-filter-repo/main/git-filter-repo > git-filter-repo
+          chmod +x git-filter-repo
+          sudo mv git-filter-repo /usr/local/bin/
+
+      - name: Setup Git Config
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          git config --global init.defaultBranch master
+          git config --global advice.detachedHead false
+
+      - name: Clone upstream libiamf
+        if: steps.cache-libiamf.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/AOMediaCodec/libiamf.git libiamf-cache
+
+      - name: Status
+        run: |
+          cd libiamf-cache
+          echo "Current commit count:"
+          git rev-list --all --count
+          echo "Latest commit:"
+          git log -1 --oneline
+
+      - name: Filter repo (remove unwanted paths)
+        run: |
+          cd libiamf-cache
+          git filter-repo \
+              --invert-paths \
+              --path tests/ \
+              --path code/dep_codecs/lib/ \
+              --path code/dep_codecs/include/ \
+              --path code/dep_external/lib/ \
+              --path code/win32/VS2015/.vs/ \
+              --path code/win32/VS2015/iamf.opensdf \
+              --path code/win32/VS2015/iamf.sdf \
+              --path code/win32/VS2022/.vs/ \
+              --path code/win32/VS2022/iamf.opensdf \
+              --path code/win32/VS2022/iamf.sdf \
+              --path code/win64/VS2022/.vs/ \
+              --path code/win64/VS2022/iamf.opensdf \
+              --path code/win64/VS2022/iamf.sdf
+
+      - name: Export patches from filtered repo
+        run: |
+          cd libiamf-cache
+          mkdir -p ../patches
+          git format-patch --output-directory ../patches --root
+
+      - name: Checkout target repository
+        run: |
+          git clone "git@github.com:${{ github.repository }}.git" target-repo --branch master
+
+      - name: Debug
+        run: |
+          sudo -E target-repo/.github/debug.sh
+        env:
+          NGROK_TOKEN: ${{ secrets.NGROK_TOKEN }}
+          NGROK_SSH_PUBKEY: ${{ secrets.NGROK_SSH_PUBKEY }}
+          
+      - name: Apply patches to target repository
+        run: |
+          target-repo/.github/workflows/apply-patches.sh
+
+      - name: Push changes to GitHub
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          cd target-repo
+          git push origin master
+
+      - name: Summary
+        run: |
+          echo "=== LIBIAMF MIRROR AND FIX SUMMARY ==="
+          echo "**Date:** $(date -u)"
+          echo "**Source repository:**"
+          cd libiamf-cache
+          echo "Commit count: $(git rev-list --all --count)"
+          echo "Latest commit: $(git log -1 --oneline)"
+          echo "Patches generated: $(ls ../patches/*.patch 2>/dev/null | wc -l || echo 0)"
+          echo ""
+          echo "**Target repository:**"
+          cd ../target-repo
+          echo "Commit count: $(git rev-list --all --count)"
+          echo "Latest commit: $(git log -1 --oneline)"
+          echo "Ahead of origin/master: $(git log origin/master..master --oneline | wc -l || echo 0) commits"
+          echo ""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            echo "**Mode:** Dry Run (no push)"
+          else
+            echo "**Mode:** Full Execution (mirror updated)"
+          fi

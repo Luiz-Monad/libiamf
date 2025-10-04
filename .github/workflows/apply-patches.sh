@@ -37,41 +37,44 @@ for patch in ../patches/*.patch; do
   fi
   
   # Check if patch can be applied
-  if git apply --check "$patch" 2>&1; then
-    echo "✓ Patch can be applied cleanly"
-    echo "* Applying: $patch_name"
-    
-    # Apply the patch
-    if git apply "$patch" 2>&1; then
-      # Extract commit message from patch file
-      commit_msg=$(grep -E '^Subject: |^Description:' "$patch" | head -1 | sed 's/^Subject: //;s/^Description: //')
-      if [ -z "$commit_msg" ]; then
-        # Fallback: use patch filename or generic message
-        commit_msg="Apply $patch_name"
-      fi
-      
-      # Commit the changes
-      git add -A
-      if git commit -m "$commit_msg"; then
-        ((applied_count++))
-        echo "✓ Successfully applied and committed: $patch_name"
-      else
-        echo "✗ Failed to commit applied patch: $patch_name"
-        git reset --hard HEAD
-        failed_patches+=("$patch_name")
-        ((failed_count++))
-      fi
-    else
-      echo "✗ Failed to apply patch: $patch_name"
-      failed_patches+=("$patch_name")
-      ((failed_count++))
-      exit 1
-    fi
-  else      
+  if ! git apply --check "$patch" 2>&1; then
     echo "✗ Patch cannot be applied: $patch_name"
     failed_patches+=("$patch_name")
     ((failed_count++))
+    continue
   fi
+
+  echo "✓ Patch can be applied cleanly"
+  echo "* Applying: $patch_name"
+
+  # Apply the patch
+  if ! git apply "$patch" 2>&1; then
+    echo "✗ Failed to apply patch: $patch_name"
+    failed_patches+=("$patch_name")
+    ((failed_count++))
+    # exit 1
+    continue
+  fi
+
+  # Extract commit message from patch file
+  commit_msg=$(grep -E '^Subject: |^Description:' "$patch" | head -1 | sed 's/^Subject: //;s/^Description: //')
+  if [ -z "$commit_msg" ]; then
+    # Fallback: use patch filename or generic message
+    commit_msg="Apply $patch_name"
+  fi
+
+  # Commit the changes
+  git add -A
+  if ! git commit -m "$commit_msg"; then
+    echo "✗ Failed to commit applied patch: $patch_name"
+    git reset --hard HEAD
+    failed_patches+=("$patch_name")
+    ((failed_count++))
+    continue
+  fi
+
+  ((applied_count++))
+  echo "✓ Successfully applied and committed: $patch_name"
   echo ""
 done
 

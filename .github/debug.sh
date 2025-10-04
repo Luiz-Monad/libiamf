@@ -61,4 +61,4 @@ echo "ngrok config:"
 cat $CONFIG_PATH
 
 echo "Debug: Ready"
-sleep 2000
+# sleep 2000

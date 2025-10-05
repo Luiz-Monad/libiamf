@@ -54,11 +54,6 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install git-filter-repo
-
       - name: Clone upstream mirror
         run: |
           git clone $UPSTREAM_REPO source

@@ -1,9 +1,8 @@
-name: Mirror and Fix libiamf
+name: Sync and Normalize Upstream
 
 on:
   schedule:
-    # Runs at 00:00, only on Sunday.
-    - cron: '0 0 * * 0'
+    - cron: "0 3 * * *"  # Run daily at 03:00 UTC
 
   # push:
   #   branches:
@@ -16,18 +15,23 @@ on:
         required: false
         default: 'false'
         type: boolean
-      dry_run:
-        description: 'Run in dry-run mode (no push)'
+      test_rev:
+        description: 'Upstream commit SHA to test (optional)'
         required: false
-        default: 'false'
-        type: boolean
+        default: ''
+
+env:
+  UPSTREAM_REPO: https://github.com/AOMediaCodec/libiamf.git
+  UPSTREAM_BRANCH: main
+  ORIGIN_REPO: git@github.com:${{ github.repository }}.git
+  ORIGIN_BRANCH: master
+  PYTHONUNBUFFERED: 1
+  TEST_REV: ${{ github.event.inputs.test_rev }}
 
 jobs:
-  libiamf-mirror-and-fix:
+  sync:
     runs-on: ubuntu-latest
-
     steps:
-
       - name: Set up Git SSH
         uses: webfactory/ssh-agent@v0.5.4
         with:
@@ -35,86 +39,49 @@ jobs:
 
       - name: Checkout target repository
         run: |
-          git clone "git@github.com:${{ github.repository }}.git" target-repo --branch master
+          git clone $ORIGIN_REPO target --branch $ORIGIN_BRANCH
 
       - name: Debug
         if: github.event.inputs.debug == 'true'
         run: |
-          sudo -E ./target-repo/.github/debug.sh
+          sudo -E ./target/.github/debug.sh
         env:
           NGROK_TOKEN: ${{ secrets.NGROK_TOKEN }}
           NGROK_SSH_PUBKEY: ${{ secrets.NGROK_SSH_PUBKEY }}
 
-      - name: Install git-filter-repo
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y git python3 pip
+          python -m pip install --upgrade pip
           pip install git-filter-repo
 
-      - name: Setup Git Config
+      - name: Clone upstream mirror
         run: |
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "actions@github.com"
-          git config --global init.defaultBranch master
-          git config --global advice.detachedHead false
-
-      - name: Clone upstream libiamf
-        if: steps.cache-libiamf.outputs.cache-hit != 'true'
-        run: |
-          git clone https://github.com/AOMediaCodec/libiamf.git libiamf-cache
-
-      - name: Status
-        run: |
-          cd libiamf-cache
-          echo "Current commit count:"
-          git rev-list --all --count
-          echo "Latest commit:"
-          git log -1 --oneline
-
-      - name: Filter repo (remove unwanted paths)
-        run: |
-          cd libiamf-cache
-          python ../target-repo/.github/workflows/normalize.py
-
-      - name: Export patches from filtered repo
-        run: |
-          cd libiamf-cache
-          mkdir -p ../patches
-          git format-patch --output-directory ../patches --root
+          git clone $UPSTREAM_REPO source
+          cd source
+          git fetch --all --tags
+          if [ -n "${TEST_REV:-}" ]; then
+            echo "Test mode: resetting mirror to specific revision $TEST_REV"
+            git checkout $TEST_REV
+          fi
+          echo "Upstream head: $(git rev-parse HEAD)"
+          cd ..
 
       - name: Debug
         if: github.event.inputs.debug == 'true'
         run: |
           exec -a debug-wait sleep infinity
 
-      - name: Apply patches to target repository
+      - name: Replay commits from upstream
         run: |
-          ./target-repo/.github/workflows/apply-patches.sh
+          python3 ./target/.github/workflows/replay.py
 
-      - name: Push changes to GitHub
+      - name: Push normalized updates
         if: github.event.inputs.dry_run != 'true'
         run: |
-          cd target-repo
-          git push origin master
-
-      - name: Summary
-        run: |
-          echo "=== LIBIAMF MIRROR AND FIX SUMMARY ==="
-          echo "**Date:** $(date -u)"
-          echo "**Source repository:**"
-          cd libiamf-cache
-          echo "Commit count: $(git rev-list --all --count)"
-          echo "Latest commit: $(git log -1 --oneline)"
-          echo "Patches generated: $(ls ../patches/*.patch 2>/dev/null | wc -l || echo 0)"
-          echo ""
-          echo "**Target repository:**"
-          cd ../target-repo
-          echo "Commit count: $(git rev-list --all --count)"
-          echo "Latest commit: $(git log -1 --oneline)"
-          echo "Ahead of origin/master: $(git log origin/master..master --oneline | wc -l || echo 0) commits"
-          echo ""
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
-            echo "**Mode:** Dry Run (no push)"
-          else
-            echo "**Mode:** Full Execution (mirror updated)"
-          fi
+          cd target
+          git push origin $ORIGIN_BRANCH

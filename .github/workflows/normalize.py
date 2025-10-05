@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
+import argparse
 import git_filter_repo as fr
+from pathlib import Path
 
 # Paths to be removed entirely from history
 PATHS_TO_REMOVE = [
@@ -21,6 +23,10 @@ PATHS_TO_REMOVE = [
 # Track blob ID to filename mapping
 blob_to_filename = {}
 
+# -----------------------------
+# Helper functions
+# -----------------------------
+
 def should_use_crlf(filename: bytes) -> bool:
     """Determine if file should use CRLF line endings."""
     path = filename.decode("utf-8", errors="ignore")
@@ -37,16 +43,26 @@ def normalize_line_endings(data: bytes, use_crlf: bool) -> bytes:
     data = data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
     return data.replace(b"\n", b"\r\n") if use_crlf else data
 
+# -----------------------------
+# Callbacks
+# -----------------------------
+
 def commit_callback(commit, metadata):
-    """Remove unwanted paths and build blob-to-filename map."""
-    # Filter out unwanted paths entirely
+    """Remove unwanted paths and adjust commit messages."""
+    # Remove unwanted files/directories
     commit.file_changes = [
         change
         for change in commit.file_changes
         if not any(change.filename.startswith(p) for p in PATHS_TO_REMOVE)
     ]
 
-    # Track blob IDs for line-ending normalization
+    # Append info to commit message
+    msg = commit.message.decode("utf-8", errors="ignore").rstrip()
+    msg += "\n\n"
+    msg += f"Upstream: {commit}\n"
+    commit.message = msg.encode("utf-8")
+
+    # Track blob IDs for normalization
     for change in commit.file_changes:
         if change.type in (b"A", b"M") and change.blob_id:
             blob_to_filename[change.blob_id] = change.filename
@@ -56,7 +72,7 @@ def blob_callback(blob, metadata):
     if not blob.data:
         return
 
-    # Skip binary blobs
+    # Skip binaries
     if b"\x00" in blob.data[:8192]:
         return
 
@@ -64,11 +80,27 @@ def blob_callback(blob, metadata):
     use_crlf = should_use_crlf(filename) if filename else False
     blob.data = normalize_line_endings(blob.data, use_crlf)
 
-if __name__ == "__main__":
-    args = fr.FilteringOptions.parse_args(["--force"])
+# -----------------------------
+# Filter
+# -----------------------------
+def run_filter(until_sha):
+    filter_args = ["--force"]
+    if until_sha:
+        filter_args += ["--refs", until_sha, "--partial"]
+    options = fr.FilteringOptions.parse_args(filter_args)
     filter = fr.RepoFilter(
-        args,
+        options,
         commit_callback=commit_callback,
         blob_callback=blob_callback
     )
     filter.run()
+
+# -----------------------------
+# Main
+# -----------------------------
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Normalize and filter repository")
+    parser.add_argument("--until-sha", help="Only process history up to this SHA", default=None)
+    args, _ = parser.parse_known_args()
+    run_filter(args.until_sha)

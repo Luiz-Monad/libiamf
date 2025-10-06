@@ -69,13 +69,14 @@ int IAMF_decoder_close(IAMF_DecoderHandle handle);
  * @brief     Configurate an iamf decoder. The first configurating decoder must
  *            need descriptor OBUs, then if only some properties have been
  *            changed, @ref IAMF_decoder_set_mix_presentation_label API. the
- *            descriptor OBUs is not needed.
+ *            descriptor OBUs is not need.
  * @param     [in] handle : iamf decoder handle.
  * @param     [in] data : the bitstream.
  * @param     [in] size : the size in bytes of bitstream.
  * @param     [in & out] rsize : the size in bytes of bitstream that has been
- *                               consumed. If is null, it means the data is the
- *                               complete configuration OBUs.
+ *                               consumed.
+ *                               if is null, it means the data is the complete
+ *                               configuration OBUs.
  * @return    @ref IAErrCode.
  */
 int IAMF_decoder_configure(IAMF_DecoderHandle handle, const uint8_t *data,
@@ -88,9 +89,10 @@ int IAMF_decoder_configure(IAMF_DecoderHandle handle, const uint8_t *data,
  *                        if is null, the output is delay signal.
  * @param     [in] size : the size in bytes of bitstream.
  * @param     [in & out] rsize : the size in bytes of bitstream that has been
- *                               consumed. If it is null, it means the data is
- *                               a complete access unit which includes all OBUs
- *                               of substream frames and parameters.
+ *                               consumed.
+ *                               if is null, it means the data is a complete
+ *                               access unit which includes all OBUs of
+ *                               substream frames and parameters.
  * @param     [out] pcm : output signal.
  * @return    the number of decoded samples or @ref IAErrCode.
  */
@@ -98,8 +100,7 @@ int IAMF_decoder_decode(IAMF_DecoderHandle handle, const uint8_t *data,
                         int32_t size, uint32_t *rsize, void *pcm);
 
 /**
- * @brief     Set mix presentation id to select the mix that match the user's
- *            preferences.
+ * @brief     Set a mix presentation label.
  * @param     [in] handle : iamf decoder handle.
  * @param     [in] id : an identifier for a Mix Presentation.
  * @return    @ref IAErrCode.
@@ -138,19 +139,14 @@ int IAMF_layout_binaural_channels_count();
 
 /**
  * @brief     Get the codec capability of iamf. Need to free string manually.
- *            The codec string format will be:
- *            "iamf.xxx.yyy.Opus;iamf.xxx.yyy.mp4a.40.2" Where xxx is three
- *            digits to indicate the value of the primary_profile and yyy
- *            is three digits to indicate the value of the additional_profile.
  * @return    the supported codec string.
  */
 char *IAMF_decoder_get_codec_capability();
 
 /**
- * @brief     Set target normalization loudness value, then loudness will be
- *            adjusted to the setting target.
+ * @brief     Set target normalization loudness.
  * @param     [in] handle : iamf decoder handle.
- * @param     [in] loundness : target normalization loudness in LKFS.
+ * @param     [in] loundness : target normalization loundness in LKFS.
  * @return    @ref IAErrCode.
  */
 int IAMF_decoder_set_normalization_loudness(IAMF_DecoderHandle handle,
@@ -175,7 +171,7 @@ int IAMF_decoder_peak_limiter_enable(IAMF_DecoderHandle handle,
                                      uint32_t enable);
 
 /**
- * @brief     Set peak threshold value of peak limiter.
+ * @brief     Set peak threshold value to limiter.
  * @param     [in] handle : iamf decoder handle.
  * @param     [in] db : peak threshold in dB.
  * @return    @ref IAErrCode.
@@ -184,14 +180,14 @@ int IAMF_decoder_peak_limiter_set_threshold(IAMF_DecoderHandle handle,
                                             float db);
 
 /**
- * @brief     Get peak threshold value of peak limiter.
+ * @brief     Get peak threshold value.
  * @param     [in] handle : iamf decoder handle.
  * @return    Peak threshold in dB.
  */
 float IAMF_decoder_peak_limiter_get_threshold(IAMF_DecoderHandle handle);
 
 /**
- * @brief     Set pcm output sampling rate.
+ * @brief     Set sampling rate.
  * @param     [in] handle : iamf decoder handle.
  * @param     [in] rate : sampling rate.
  * @return    @ref IAErrCode.
@@ -199,14 +195,14 @@ float IAMF_decoder_peak_limiter_get_threshold(IAMF_DecoderHandle handle);
 int IAMF_decoder_set_sampling_rate(IAMF_DecoderHandle handle, uint32_t rate);
 
 /**
- * @brief     Get stream info. Must be used after decoder configuration.
- *            max frame size could be gotten.
+ * @brief     Get stream info.Must be used after decoder configuration.
  * @param     [in] handle : iamf decoder handle.
  * @return    @stream info.
  */
 IAMF_StreamInfo *IAMF_decoder_get_stream_info(IAMF_DecoderHandle handle);
 
-// Following functions are provided for handling metadata and pts.
+// only for tizen
+
 typedef struct IAMF_Param {
   int parameter_length;
   uint32_t parameter_definition_type;
@@ -238,24 +234,8 @@ typedef struct IAMF_extradata {
   IAMF_Param *param;
 } IAMF_extradata;
 
-/**
- * @brief     Set the start timestamp and time base to decoder.
- *            max frame size could be gotten.
- * @param     [in] handle : iamf decoder handle.
- * @param     [in] pts : the start timestamp.
- * @param     [in] time_base : the time base used for pts.
- * @return    @ref IAErrCode.
- */
 int IAMF_decoder_set_pts(IAMF_DecoderHandle handle, int64_t pts,
                          uint32_t time_base);
-
-/**
- * @brief     Get the metadata and pts corresponding to last PCM frame.
- * @param     [in] handle : iamf decoder handle.
- * @param     [in] pts : the timestamp of last PCM frame.
- * @param     [in] metadata : the metadata of last PCM frame.
- * @return    @ref IAErrCode.
- */
 int IAMF_decoder_get_last_metadata(IAMF_DecoderHandle handle, int64_t *pts,
                                    IAMF_extradata *metadata);
 #ifdef __cplusplus

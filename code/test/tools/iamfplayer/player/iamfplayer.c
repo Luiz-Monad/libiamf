@@ -31,8 +31,8 @@ This software module is out of scope and not part of the IAMF Final Deliverable.
 */
 
 /**
- * @file test_iamfdec.c
- * @brief IAMF decode test.
+ * @file iamfplayer.c
+ * @brief IAMF player.
  * @version 0.1
  * @date Created 03/03/2023
  **/
@@ -69,8 +69,7 @@ typedef struct Layout {
 } Layout;
 
 typedef struct PlayerArgs {
-  const char *input_path;
-  const char *ouput_path;
+  const char *path;
   Layout *layout;
   float peak;
   float loudness;
@@ -86,19 +85,17 @@ static void print_usage(char *argv[]) {
   fprintf(stderr, "%s <options> <input file>\n", argv[0]);
   fprintf(stderr, "options:\n");
   fprintf(stderr, "-i[0-1]    0 : IAMF bitstream input.(default)\n");
-  fprintf(stderr, "           1 : MP4 input.\n");
-  fprintf(stderr, "-o[2-3]    2 : WAVE output, same path as binary.(default)\n");
-  fprintf(stderr,
-          "           3 [path]\n"
-          "             : WAVE output, user setting path.\n");
+  fprintf(stderr, "           1 : mp4 input.\n");
+  /* fprintf(stderr, "-o1          : -o1(mp4 dump output)\n"); */
+  fprintf(stderr, "-o2        2 : pcm output.\n");
   fprintf(
       stderr,
-      "-r [rate]    : Audio signal sampling rate, 48000 is the default. \n");
+      "-r [rate]    : audio signal sampling rate, 48000 is the default. \n");
 #if SUPPORT_VERIFIER
   fprintf(stderr, "-v <file>    : verification log generation.\n");
 #endif
   fprintf(stderr,
-          "-s[0~11,b]   : Output layout, the sound system A~J and extensions "
+          "-s[0~11,b]   : output layout, the sound system A~J and extensions "
           "(Upper + Middle + Bottom).\n");
   fprintf(stderr, "           0 : Sound system A (0+2+0)\n");
   fprintf(stderr, "           1 : Sound system B (0+5+0)\n");
@@ -116,7 +113,7 @@ static void print_usage(char *argv[]) {
   fprintf(stderr, "           b : Binaural.\n");
   fprintf(stderr, "-p [dB]      : Peak threshold in dB.\n");
   fprintf(stderr, "-l [LKFS]    : Normalization loudness in LKFS.\n");
-  fprintf(stderr, "-d [bit]     : Bit depth of WAVE output.\n");
+  fprintf(stderr, "-d           : Bit depth of pcm output.\n");
   fprintf(stderr, "-mp [id]     : Set mix presentation id.\n");
   fprintf(stderr,
           "-m           : Generate a metadata file with the suffix .met .\n");
@@ -305,7 +302,7 @@ static void extradata_iamf_clean(IAMF_extradata *data) {
 }
 
 #define BLOCK_SIZE 960 * 6 * 2 * 16
-#define NAME_LENGTH 256
+#define NAME_LENGTH 128
 #define FCLOSE(f) \
   if (f) {        \
     fclose(f);    \
@@ -329,46 +326,44 @@ static int bs_input_wav_output(PlayerArgs *pas) {
   uint64_t frsize = 0, fsize = 0;
   uint32_t size;
   const char *s = 0, *d;
-  const char *input_path = pas->input_path;
+  const char *path = pas->path;
   Layout *layout = pas->layout;
   float db = pas->peak;
   float loudness = pas->loudness;
   uint32_t r = pas->rate;
   uint32_t bit_depth = pas->bit_depth;
 
-  if (!input_path) return -1;
-  if (pas->ouput_path) {
-    snprintf(out, NAME_LENGTH, "%s", pas->ouput_path);
-  } else {
-    if (layout->type == 2) {
-      snprintf(out, NAME_LENGTH, "ss%d_", layout->ss);
-      ret = strlen(out);
-    } else if (layout->type == 3) {
-      snprintf(out, NAME_LENGTH, "binaural_");
-      ret = strlen(out);
-    } else {
-      fprintf(stdout, "Invalid output layout type %d.\n", layout->type);
-      return -1;
-    }
+  if (!path) return -1;
 
-#if defined(_WIN32)
-    s = strrchr(input_path, '\\');
-#else
-    s = strrchr(input_path, '/');
-#endif
-    if (!s) {
-      s = input_path;
-    } else {
-      ++s;
-    }
-    d = strrchr(input_path, '.');
-    if (d) {
-      strncpy(out + ret, s,
-              d - s < NAME_LENGTH - 5 - ret ? d - s : NAME_LENGTH - 5 - ret);
-      ret = strlen(out);
-    }
-    snprintf(out + ret, NAME_LENGTH - ret, "%s", ".wav");
+  if (layout->type == 2) {
+    snprintf(out, NAME_LENGTH, "ss%d_", layout->ss);
+    ret = strlen(out);
+  } else if (layout->type == 3) {
+    snprintf(out, NAME_LENGTH, "binaural_");
+    ret = strlen(out);
+  } else {
+    fprintf(stdout, "Invalid output layout type %d.\n", layout->type);
+    return -1;
   }
+
+  #if defined(_WIN32)
+  s = strrchr(path, '\\');
+#else
+  s = strrchr(path, '/');
+#endif
+  if (!s) {
+    s = path;
+  } else {
+    ++s;
+  }
+  d = strrchr(path, '.');
+  if (d) {
+    strncpy(out + ret, s,
+            d - s < NAME_LENGTH - 5 - ret ? d - s : NAME_LENGTH - 5 - ret);
+    ret = strlen(out);
+  }
+  snprintf(out + ret, NAME_LENGTH - ret, "%s", ".wav");
+
   if (pas->flags & FLAG_METADATA) {
     strcpy(meta_n, out);
     snprintf(meta_n + ret, NAME_LENGTH - ret, "%s", ".met");
@@ -413,9 +408,9 @@ static int bs_input_wav_output(PlayerArgs *pas) {
     fprintf(stdout, "Binaural has %d channels\n", channels);
   }
 
-  f = fopen(input_path, "rb");
+  f = fopen(path, "rb");
   if (!f) {
-    fprintf(stderr, "%s can't opened.\n", input_path);
+    fprintf(stderr, "%s can't opened.\n", path);
     return -1;
   }
 
@@ -556,7 +551,7 @@ static int mp4_input_wav_output2(PlayerArgs *pas) {
   const char *s = 0, *d;
   int entno = 0;
   int64_t sample_offs;
-  const char *input_path = pas->input_path;
+  const char *path = pas->path;
   Layout *layout = pas->layout;
   float db = pas->peak;
   float loudness = pas->loudness;
@@ -564,42 +559,37 @@ static int mp4_input_wav_output2(PlayerArgs *pas) {
   uint32_t r = pas->rate;
   int64_t st = 0;
 
-  if (!input_path) return -1;
+  if (!path) return -1;
 
   memset(&mp4par, 0, sizeof(mp4par));
-  if (pas->ouput_path) {
-    snprintf(out, NAME_LENGTH, "%s", pas->ouput_path);
+  if (layout->type == 2) {
+    snprintf(out, NAME_LENGTH, "ss%d_", layout->ss);
+    ret = strlen(out);
+  } else if (layout->type == 3) {
+    snprintf(out, NAME_LENGTH, "binaural_");
+    ret = strlen(out);
   } else {
-    if (layout->type == 2) {
-      snprintf(out, NAME_LENGTH, "ss%d_", layout->ss);
-      ret = strlen(out);
-    } else if (layout->type == 3) {
-      snprintf(out, NAME_LENGTH, "binaural_");
-      ret = strlen(out);
-    } else {
-      fprintf(stdout, "Invalid output layout type %d.\n", layout->type);
-      return -1;
-    }
-
-#if defined(_WIN32)
-    s = strrchr(input_path, '\\');
-#else
-    s = strrchr(input_path, '/');
-#endif
-    if (!s) {
-      s = input_path;
-    } else {
-      ++s;
-    }
-    d = strrchr(input_path, '.');
-    if (d) {
-      strncpy(out + ret, s,
-              d - s < NAME_LENGTH - 5 - ret ? d - s : NAME_LENGTH - 5 - ret);
-      ret = strlen(out);
-    }
-    snprintf(out + ret, NAME_LENGTH - ret, "%s", ".wav");
+    fprintf(stdout, "Invalid output layout type %d.\n", layout->type);
+    return -1;
   }
 
+#if defined(_WIN32)
+  s = strrchr(path, '\\');
+#else
+  s = strrchr(path, '/');
+#endif
+  if (!s) {
+    s = path;
+  } else {
+    ++s;
+  }
+  d = strrchr(path, '.');
+  if (d) {
+    strncpy(out + ret, s,
+            d - s < NAME_LENGTH - 5 - ret ? d - s : NAME_LENGTH - 5 - ret);
+    ret = strlen(out);
+  }
+  snprintf(out + ret, NAME_LENGTH - ret, "%s", ".wav");
   if (pas->flags & FLAG_METADATA) {
     strcpy(meta_n, out);
     snprintf(meta_n + ret, NAME_LENGTH - ret, "%s", ".met");
@@ -648,9 +638,9 @@ static int mp4_input_wav_output2(PlayerArgs *pas) {
     goto end;
   }
 
-  f = fopen(input_path, "rb");
+  f = fopen(path, "rb");
   if (!f) {
-    fprintf(stderr, "%s can't opened.\n", input_path);
+    fprintf(stderr, "%s can't opened.\n", path);
     ret = errno;
     goto end;
   }
@@ -665,10 +655,10 @@ static int mp4_input_wav_output2(PlayerArgs *pas) {
 
   mp4_iamf_parser_init(&mp4par);
   mp4_iamf_parser_set_logger(&mp4par, 0);
-  ret = mp4_iamf_parser_open_audio_track(&mp4par, input_path, &header);
+  ret = mp4_iamf_parser_open_audio_track(&mp4par, path, &header);
 
   if (ret <= 0) {
-    fprintf(stderr, "mp4opusdemuxer can not open mp4 file(%s)\n", input_path);
+    fprintf(stderr, "mp4opusdemuxer can not open mp4 file(%s)\n", path);
     goto end;
   }
 
@@ -752,7 +742,7 @@ end:
 
 int main(int argc, char *argv[]) {
   int args;
-  int output_mode = 2;
+  int output_mode = 0;
   int input_mode = 0;
   int sound_system = -1;
   char *f = 0;
@@ -783,9 +773,6 @@ int main(int argc, char *argv[]) {
       if (argv[args][1] == 'o') {
         output_mode = atoi(argv[args] + 2);
         fprintf(stdout, "Output mode %d\n", output_mode);
-        if (output_mode == 3) {
-          pas.ouput_path = argv[++args];
-        }
       } else if (argv[args][1] == 'i') {
         input_mode = atoi(argv[args] + 2);
         fprintf(stdout, "Input mode %d\n", input_mode);
@@ -849,19 +836,13 @@ int main(int argc, char *argv[]) {
         return 0;
       }
       fprintf(stdout, "Input file : %s\n", f);
-      pas.input_path = f;
+      pas.path = f;
     }
     args++;
   }
 
   if (input_mode != 1 && pas.st) {
     fprintf(stderr, "ERROR: -st is valid when mp4 file is used as input.\n");
-    print_usage(argv);
-    return -1;
-  }
-
-  if (output_mode != 2 && output_mode != 3) {
-    fprintf(stderr, "invalid output mode\n");
     print_usage(argv);
     return -1;
   }
@@ -873,12 +854,13 @@ int main(int argc, char *argv[]) {
 #if SUPPORT_VERIFIER
     if (pas.flags & FLAG_VLOG) vlog_file_open(vlog_file);
 #endif
-    if (!input_mode) {
+    if (!input_mode && output_mode == 2) {
       bs_input_wav_output(&pas);
-    } else if (input_mode == 1) {
+    } else if (input_mode == 1 && output_mode == 2) {
+      // mp4_input_wav_output(&pas);
       mp4_input_wav_output2(&pas);
     } else {
-      fprintf(stderr, "invalid input mode %d\n", input_mode);
+      fprintf(stderr, "invalid output mode %d\n", output_mode);
     }
 #if SUPPORT_VERIFIER
     if (pas.flags & FLAG_VLOG) vlog_file_close();

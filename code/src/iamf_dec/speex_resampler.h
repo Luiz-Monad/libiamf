@@ -28,11 +28,6 @@
    POSSIBILITY OF SUCH DAMAGE.
 */
 
-/*
-AOM-IAMF Standard Deliverable Status:
-This software module is out of scope and not part of the IAMF Final Deliverable.
-*/
-
 /**
  * @file speex_resampler.h
  * @brief Resampler APIs.

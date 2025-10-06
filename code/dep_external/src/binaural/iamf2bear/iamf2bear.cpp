@@ -1,14 +1,29 @@
 /*
- * Copyright (c) 2024, Alliance for Open Media. All rights reserved
- *
- * This source code is subject to the terms of the BSD 3-Clause Clear License
- * and the Alliance for Open Media Patent License 1.0. If the BSD 3-Clause Clear
- * License was not distributed with this source code in the LICENSE file, you
- * can obtain it at www.aomedia.org/license/software-license/bsd-3-c-c. If the
- * Alliance for Open Media Patent License 1.0 was not distributed with this
- * source code in the PATENTS file, you can obtain it at
- * www.aomedia.org/license/patent.
- */
+BSD 3-Clause Clear License The Clear BSD License
+
+Copyright (c) 2023, Alliance for Open Media.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation
+and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
 
 /**
  * @file bear.cpp
@@ -87,7 +102,7 @@ static int getmodulepath(char *path, int buffsize)
   int count = 0, i = 0;
 #if defined(_WIN32)
   count = GetModuleFileName(NULL, path, buffsize);
-#elif defined(__APPLE__)
+#elifdef __APPLE__
   uint32_t size = MAX_PATH;
   _NSGetExecutablePath(path, &size); 
   count = size;
@@ -154,7 +169,7 @@ extern "C" EXPORT_API void *CreateBearAPI(char *tf_data_path)
   }
 }
 
-extern "C" EXPORT_API void DestroyBearAPI(void *pv_thiz)
+extern "C" EXPORT_API void DestoryBearAPI(void *pv_thiz)
 {
   int i;
   BearAPIImplement *thiz = (BearAPIImplement *)pv_thiz;
@@ -216,17 +231,17 @@ extern "C" EXPORT_API int ConfigureBearDirectSpeakerChannel(void *pv_thiz,
                                         std::make_pair(-180.0, 180.0),
                                         std::make_pair(-90.0, 90.0),
                                         true},
-                                Channel{"U+030",
-                                        PolarPosition{30.0, 30.0},
-                                        PolarPosition{30.0, 30.0},
-                                        std::make_pair(30.0, 45.0),
-                                        std::make_pair(30.0, 55.0),
+                                Channel{"M+110",
+                                        PolarPosition{110.0, 0.0},
+                                        PolarPosition{110.0, 0.0},
+                                        std::make_pair(100.0, 120.0),
+                                        std::make_pair(0.0, 15.0),
                                         false},
-                                Channel{"U-030",
-                                        PolarPosition{-30.0, 30.0},
-                                        PolarPosition{-30.0, 30.0},
-                                        std::make_pair(-45.0, -30.0),
-                                        std::make_pair(30.0, 55.0),
+                                Channel{"M-110",
+                                        PolarPosition{-110.0, 0.0},
+                                        PolarPosition{-110.0, 0.0},
+                                        std::make_pair(-120.0, -100.0),
+                                        std::make_pair(0.0, 15.0),
                                         false},
                             }};
 
@@ -374,7 +389,7 @@ extern "C" EXPORT_API int SetBearDirectSpeakerChannel(void *pv_thiz, int source_
   return (-1);
 }
 
-extern "C" EXPORT_API void DestroyBearChannel(void *pv_thiz, int source_id)
+extern "C" EXPORT_API void DestoryBearChannel(void *pv_thiz, int source_id)
 {
   BearAPIImplement *thiz = (BearAPIImplement *)pv_thiz;
 

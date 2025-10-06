@@ -39,7 +39,6 @@
 #define IAMF_FLAG_AUDIO_ELEMENT 0x04
 #define IAMF_FLAG_MIX_PRESENTATION 0x08
 #define IAMF_FLAG_CONFIG 0x10
-#define IAMF_FLAG_FRAME_START 0x20
 #define IAMF_FLAG_DESCRIPTORS                                                \
   (IAMF_FLAG_MAGIC_CODE | IAMF_FLAG_CODEC_CONFIG | IAMF_FLAG_AUDIO_ELEMENT | \
    IAMF_FLAG_MIX_PRESENTATION)
@@ -137,8 +136,6 @@ typedef struct IAMF_DataBase {
 
   Viewer eViewer;
   Viewer pViewer;
-
-  IAMF_Profile profile;
 } IAMF_DataBase;
 
 /* <<<<<<<<<<<<<<<<<< DATABASE <<<<<<<<<<<<<<<<<< */

@@ -247,8 +247,8 @@ uint32_t iamf_obu_get_payload_size(IAMF_OBU *obu) {
   return obu->size - (uint32_t)(obu->payload - obu->data);
 }
 
-static int _valid_profile(uint8_t primary, uint8_t addional) {
-  return primary < IAMF_PROFILE_COUNT && primary <= addional;
+static int _valid_profile(uint8_t profile) {
+  return profile == IAMF_PROFILE_SIMPLE || profile == IAMF_PROFILE_BASE;
 }
 
 IAMF_Version *iamf_version_new(IAMF_OBU *obu) {
@@ -273,11 +273,9 @@ IAMF_Version *iamf_version_new(IAMF_OBU *obu) {
       "%u.",
       (char *)&ver->iamf_code, ver->primary_profile, ver->additional_profile);
 
-  if (!_valid_profile(ver->primary_profile, ver->additional_profile)) {
-    ia_loge(
-        "ia sequence header object: Invalid primary profile %u or additional "
-        "profile %u.",
-        ver->primary_profile, ver->additional_profile);
+  if (!_valid_profile(ver->primary_profile)) {
+    ia_loge("ia sequence header object: Invalid profile %u",
+            ver->primary_profile);
     goto version_fail;
   }
 
@@ -330,7 +328,7 @@ IAMF_CodecConf *iamf_codec_conf_new(IAMF_OBU *obu) {
           conf->nb_samples_per_frame, conf->roll_distance);
 
   if (!_valid_codec(conf->codec_id)) {
-    ia_logw("codec configure object: id %" PRIu64 ", invalid codec %.4s",
+    ia_loge("codec configure object: id %" PRIu64 ", invalid codec %.4s",
             conf->codec_conf_id, (char *)&conf->codec_id);
     goto codec_conf_fail;
   }
@@ -446,10 +444,10 @@ IAMF_Element *iamf_element_new(IAMF_OBU *obu) {
     } else {
       uint64_t size = bs_getAleb128(&b);
       bs_skipABytes(&b, size);
-      ia_logw("Don't support parameter type %" PRIu64
+      ia_loge("Don't support parameter type %" PRIu64
               " in Audio Element %" PRId64
               ", parameter definition bytes %" PRIu64 ".",
-              type, elem->element_id, size);
+              elem->element_id, type, size);
       continue;
     }
 
@@ -596,7 +594,7 @@ IAMF_Element *iamf_element_new(IAMF_OBU *obu) {
           conf->substream_count + conf->coupled_substream_count,
           conf->mapping_size);
     } else {
-      ia_logw("audio element object: id %" PRIu64
+      ia_loge("audio element object: id %" PRIu64
               ", invalid ambisonics mode %" PRIu64,
               elem->element_id, conf->ambisonics_mode);
       goto element_fail;
@@ -604,7 +602,7 @@ IAMF_Element *iamf_element_new(IAMF_OBU *obu) {
   } else {
     uint64_t size = bs_getAleb128(&b);
     bs_skipABytes(&b, size);
-    ia_logw("audio element object: id %" PRIu64
+    ia_loge("audio element object: id %" PRIu64
             ", Don't support type %u, element config "
             "bytes %" PRIu64,
             elem->element_id, elem->element_type, size);
@@ -712,12 +710,11 @@ IAMF_MixPresentation *iamf_mix_presentation_new(IAMF_OBU *obu) {
           mixp->mix_presentation_id, mixp->num_labels, mixp->num_sub_mixes);
 
   if (!mixp->num_sub_mixes) {
-    ia_logw("Mix Presentation Object: num_sub_mixes should not be set to 0.");
+    ia_loge("Mix Presentation Object: num_sub_mixes should not be set to 0.");
     goto mix_presentation_fail;
-  } else if (mixp->num_sub_mixes > IAMF_MIX_PRESENTATION_MAX_SUBS) {
+  } else if (mixp->num_sub_mixes > 1) {
     ia_logw(
-        "Mix Presentation Object: Do not support num_sub_mixes more than %u.",
-        IAMF_MIX_PRESENTATION_MAX_SUBS);
+        "Mix Presentation Object: Do not support num_sub_mixes more than 1.");
     goto mix_presentation_fail;
   }
 
@@ -758,6 +755,11 @@ IAMF_MixPresentation *iamf_mix_presentation_new(IAMF_OBU *obu) {
       ia_loge(
           "Mix Presentation Object: num_audio_elements should not be set to "
           "0.");
+      goto mix_presentation_fail;
+    } else if (val > 2) {
+      ia_logw(
+          "Mix Presentation Object: Do not support num_audio_elements more "
+          "than 2.");
       goto mix_presentation_fail;
     }
 
@@ -1021,10 +1023,10 @@ IAMF_Parameter *iamf_parameter_new(IAMF_OBU *obu,
   para->id = bs_getAleb128(&b);
 
   if (!objParam || !objParam->param_base) {
-    // ia_loge("parameter object(%" PRIu64
-    //         "): Invalid object parameters for Parameter "
-    //         "Object.",
-    //         para->id);
+    ia_loge("parameter object(%" PRIu64
+            "): Invalid object parameters for Parameter "
+            "Object.",
+            para->id);
     goto parameter_fail;
   }
 

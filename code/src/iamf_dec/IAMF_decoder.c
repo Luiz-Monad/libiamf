@@ -40,7 +40,6 @@
 #define INVALID_TIMESTAMP 0xFFFFFFFF
 #define OUTPUT_SAMPLERATE 48000
 #define SPEEX_RESAMPLER_QUALITY 4
-#define MAX_LIMITED_NORMALIZATION_LOUDNESS 0.0f
 
 #define IAMF_DECODER_CONFIG_MIX_PRESENTATION 0x1
 #define IAMF_DECODER_CONFIG_OUTPUT_LAYOUT 0x2
@@ -95,10 +94,9 @@ static int32_t FLOAT2INT24(float x) {
 
 static int32_t FLOAT2INT32(float x) {
   x = x * 2147483648.f;
-  if (x > -2147483648.f && x < 2147483647.f)
-    return (int32_t)lrintf(x);
-  else
-    return (x > 0.0f ? 2147483647 : (-2147483647 - 1));
+  x = MAX(x, -2147483648.f);
+  x = MIN(x, 2147483647.f);
+  return (int32_t)lrintf(x);
 }
 
 static void iamf_decoder_plane2stride_out(void *dst, const float *src,
@@ -601,7 +599,6 @@ static int32_t iamf_stream_scale_decoder_demix(IAMF_StreamDecoder *decoder,
                                                uint32_t frame_size);
 static int iamf_stream_ambisonics_decoder_decode(IAMF_StreamDecoder *decoder,
                                                  float *pcm);
-static uint32_t iamf_stream_ambisionisc_order(int channels);
 
 /* >>>>>>>>>>>>>>>>>> DATABASE >>>>>>>>>>>>>>>>>> */
 
@@ -700,13 +697,14 @@ static int iamf_element_is_valid(IAMF_Element *e) {
   } else if (e->element_type == AUDIO_ELEMENT_TYPE_SCENE_BASED) {
     int channels = e->ambisonics_conf->substream_count +
                    e->ambisonics_conf->coupled_substream_count;
-    if ((iamf_stream_ambisionisc_order(
-             e->ambisonics_conf->output_channel_count) == UINT32_MAX) ||
-        (channels > e->ambisonics_conf->output_channel_count)) {
+    if ((e->ambisonics_conf->output_channel_count >
+         IAMF_AMBISONICS_MAX_CHANNELS) ||
+        (channels > IAMF_AMBISONICS_MAX_CHANNELS)) {
       ia_logw(
-          "Invalid output channel count %d or input channel count %d more than "
-          "output in ambisonics mode",
-          e->ambisonics_conf->output_channel_count, channels);
+          "Invalid output channel count %d or invalid channels %d in "
+          "ambisonics mode, it is more than %d",
+          e->ambisonics_conf->output_channel_count, channels,
+          IAMF_AMBISONICS_MAX_CHANNELS);
       ret = IAMF_ERR_UNIMPLEMENTED;
     }
   } else
@@ -1185,16 +1183,6 @@ static int iamf_database_element_add(IAMF_DataBase *db, IAMF_Object *obj) {
   return ret;
 }
 
-static struct {
-  uint32_t max_elements;
-  uint32_t max_channels;
-} _profile_limit[IAMF_PROFILE_COUNT] = {
-    {IAMF_SIMPLE_PROFILE_MIX_PRESENTATION_MAX_ELEMENTS,
-     IAMF_SIMPLE_PROFILE_MIX_PRESENTATION_MAX_CHANNELS},
-    {IAMF_BASE_PROFILE_MIX_PRESENTATION_MAX_ELEMENTS,
-     IAMF_BASE_PROFILE_MIX_PRESENTATION_MAX_CHANNELS},
-};
-
 static int iamf_database_mix_presentation_is_valid(IAMF_DataBase *db,
                                                    IAMF_MixPresentation *mp) {
   int ret = IAMF_OK;
@@ -1203,14 +1191,9 @@ static int iamf_database_mix_presentation_is_valid(IAMF_DataBase *db,
   int channels = 0;
   ElementItem *pi = 0;
 
+  if (mp->num_sub_mixes < IAMF_MIX_PRESENTATION_MAX_SUBS) return 0;
   sub = mp->sub_mixes;
-  if (sub->nb_elements > _profile_limit[db->profile].max_elements) {
-    ia_logw("Too many elements %" PRIu64
-            " (should be <= %u) in mix presentation %" PRIu64 " for profile %u",
-            sub->nb_elements, _profile_limit[db->profile].max_elements,
-            mp->mix_presentation_id, db->profile);
-    return 0;
-  }
+  if (sub->nb_elements > IAMF_MIX_PRESENTATION_MAX_ELEMENTS) return 0;
 
   for (int e = 0; e < sub->nb_elements; ++e) {
     econf = &sub->conf_s[e];
@@ -1239,10 +1222,10 @@ static int iamf_database_mix_presentation_is_valid(IAMF_DataBase *db,
   }
 
   if (ret != IAMF_OK) return !ret;
-  if (channels > _profile_limit[db->profile].max_channels) {
+  if (channels > IAMF_MIX_PRESENTATION_MAX_CHANNELS) {
     ia_logw("Mix Presentation %" PRId64 " has %d channels, more than %u",
             mp->mix_presentation_id, channels,
-            _profile_limit[db->profile].max_channels);
+            IAMF_MIX_PRESENTATION_MAX_CHANNELS);
     return 0;
   }
 
@@ -1278,7 +1261,6 @@ int iamf_database_init(IAMF_DataBase *db) {
   db->mixPresentation = iamf_object_set_new(iamf_object_free);
   db->eViewer.freeF = free;
   db->pViewer.freeF = iamf_parameter_item_free;
-  db->profile = IAMF_PROFILE_DEFAULT;
 
   if (!db->codecConf || !db->element || !db->mixPresentation) {
     iamf_database_reset(db);
@@ -1306,27 +1288,13 @@ static int iamf_database_add_object(IAMF_DataBase *db, IAMF_Object *obj) {
   if (!obj) return IAMF_ERR_BAD_ARG;
 
   switch (obj->type) {
-    case IAMF_OBU_SEQUENCE_HEADER: {
-      IAMF_Version *version = (IAMF_Version *)obj;
-
-      if (version->primary_profile > db->profile) {
-        ia_loge("Unimplemented profile %u", version->primary_profile);
-        free(obj);
-        ret = IAMF_ERR_UNIMPLEMENTED;
-        break;
-      }
-
-      if (version->additional_profile < db->profile)
-        db->profile = version->additional_profile;
-
+    case IAMF_OBU_SEQUENCE_HEADER:
       if (db->version) {
         ia_logw("WARNING : Receive Multiple START CODE OBUs !!!");
         free(db->version);
       }
-
       db->version = obj;
       break;
-    }
     case IAMF_OBU_CODEC_CONFIG:
       ret = iamf_object_set_add(db->codecConf, (void *)obj);
       break;
@@ -3019,7 +2987,6 @@ uint32_t iamf_decoder_internal_read_descriptors_OBUs(IAMF_DecoderHandle handle,
         }
       }
     } else {
-      handle->ctx.flags |= IAMF_FLAG_FRAME_START;
       if (!(~handle->ctx.flags & IAMF_FLAG_DESCRIPTORS))
         handle->ctx.flags |= IAMF_FLAG_CONFIG;
       break;
@@ -3134,7 +3101,7 @@ int32_t iamf_decoder_internal_add_descrptor_OBU(IAMF_DecoderHandle handle,
   db = &handle->ctx.db;
   obj = IAMF_object_new(obu, 0);
   if (!obj) {
-    ia_logw("fail to new object for %s(%d)", IAMF_OBU_type_string(obu->type),
+    ia_loge("fail to new object for %s(%d)", IAMF_OBU_type_string(obu->type),
             obu->type);
     return IAMF_ERR_ALLOC_FAIL;
   }
@@ -3683,7 +3650,7 @@ static int iamf_decoder_internal_decode(IAMF_DecoderHandle handle,
       swap((void **)&f->data, (void **)&out);
     }
 
-    if (ctx->normalization_loudness < MAX_LIMITED_NORMALIZATION_LOUDNESS) {
+    if (ctx->normalization_loudness) {
       iamf_loudness_process(
           f->data, real_frame_size, ctx->output_layout->channels,
           db2lin(ctx->normalization_loudness - ctx->loudness));
@@ -3926,7 +3893,6 @@ IAMF_DecoderHandle IAMF_decoder_open(void) {
     handle->ctx.threshold_db = LIMITER_MaximumTruePeak;
     handle->ctx.loudness = 1.0f;
     handle->ctx.sampling_rate = OUTPUT_SAMPLERATE;
-    handle->ctx.normalization_loudness = MAX_LIMITED_NORMALIZATION_LOUDNESS;
     handle->ctx.status = IAMF_DECODER_STATUS_INIT;
     handle->ctx.mix_presentation_id = INVALID_ID;
     handle->limiter = audio_effect_peak_limiter_create();
@@ -4066,10 +4032,10 @@ int iamf_decoder_internal_configure(IAMF_DecoderHandle handle,
     } else {
       ret = IAMF_ERR_INTERNAL;
       if (ctx->mix_presentation_id != INVALID_ID)
-        ia_logw("Fail to find the mix presentation %" PRId64 " obu.",
+        ia_loge("Fail to find the mix presentation %" PRId64 " obu.",
                 ctx->mix_presentation_id);
       else
-        ia_logw("Fail to find the valid mix presentation obu, try again.");
+        ia_loge("Fail to find the valid mix presentation obu, try again.");
     }
   }
 
@@ -4083,10 +4049,6 @@ int IAMF_decoder_configure(IAMF_DecoderHandle handle, const uint8_t *data,
 
   if (rsize) {
     *rsize = rs;
-    if ((ret != IAMF_OK && ret != IAMF_ERR_BUFFER_TOO_SMALL) ||
-        (ret == IAMF_ERR_BUFFER_TOO_SMALL &&
-         (handle->ctx.flags & IAMF_FLAG_FRAME_START)))
-      ia_loge("fail to configure decoder.");
     return ret;
   }
 
@@ -4098,8 +4060,6 @@ int IAMF_decoder_configure(IAMF_DecoderHandle handle, const uint8_t *data,
     ia_logd("configure with complete descriptor OBUs.");
     ret = iamf_decoder_internal_configure(handle, 0, 0, 0);
   }
-
-  if (ret != IAMF_OK) ia_loge("fail to configure decoder.");
 
   return ret;
 }

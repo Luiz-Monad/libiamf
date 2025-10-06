@@ -68,6 +68,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define STR(str) _STR(str)
 #define _STR(str) #str
 
+#ifndef DISABLE_BINAURALIZER
+#define DISABLE_BINAURALIZER 1
+#endif
+
 #define SR 0
 #if SR
 extern void iamf_rec_stream_log(int eid, int chs, float *in, int size);
@@ -1342,10 +1346,10 @@ static void iamf_stream_renderer_close(IAMF_StreamRenderer *sr);
 static void iamf_mixer_reset(IAMF_Mixer *m);
 static int iamf_stream_scale_decoder_update_recon_gain(
     IAMF_StreamDecoder *decoder, ReconGainList *list);
-static IAMF_Resampler *iamf_stream_resampler_open(IAMF_Stream *stream,
-                                                  uint32_t out_rate,
-                                                  int quality);
-static void iamf_stream_resampler_close(IAMF_Resampler *r);
+static SpeexResamplerState *iamf_stream_resampler_open(IAMF_Stream *stream,
+                                                       uint32_t out_rate,
+                                                       int quality);
+static void iamf_stream_resampler_close(SpeexResamplerState *r);
 
 static int iamf_packet_check_count(Packet *pkt) {
   return pkt->count == pkt->nb_sub_packets;
@@ -1476,9 +1480,9 @@ static IAMF_StreamRenderer *iamf_presentation_take_renderer(
   return renderer;
 }
 
-static IAMF_Resampler *iamf_presentation_take_resampler(
+static SpeexResamplerState *iamf_presentation_take_resampler(
     IAMF_Presentation *pst) {
-  IAMF_Resampler *resampler = 0;
+  SpeexResamplerState *resampler = 0;
   resampler = pst->resampler;
   pst->resampler = 0;
 
@@ -1892,19 +1896,17 @@ stream_enable_fail:
   return ret;
 }
 
-IAMF_Resampler *iamf_stream_resampler_open(IAMF_Stream *stream,
-                                           uint32_t out_rate, int quality) {
-  IAMF_Resampler *resampler = IAMF_MALLOCZ(IAMF_Resampler, 1);
-  if (!resampler) goto open_fail;
+SpeexResamplerState *iamf_stream_resampler_open(IAMF_Stream *stream,
+                                                uint32_t out_rate,
+                                                int quality) {
   int err = 0;
   uint32_t channels = stream->final_layout->channels;
-  SpeexResamplerState *speex_resampler = speex_resampler_init(
+  SpeexResamplerState *resampler = speex_resampler_init(
       channels, stream->sampling_rate, out_rate, quality, &err);
   ia_logi("in sample rate %u, out sample rate %u", stream->sampling_rate,
           out_rate);
-  resampler->speex_resampler = speex_resampler;
   if (err != RESAMPLER_ERR_SUCCESS) goto open_fail;
-  speex_resampler_skip_zeros(speex_resampler);
+  speex_resampler_skip_zeros(resampler);
   resampler->buffer = IAMF_MALLOCZ(float, stream->max_frame_size *channels);
   if (!resampler->buffer) goto open_fail;
   return resampler;
@@ -1913,11 +1915,10 @@ open_fail:
   return 0;
 }
 
-void iamf_stream_resampler_close(IAMF_Resampler *r) {
+void iamf_stream_resampler_close(SpeexResamplerState *r) {
   if (r) {
     if (r->buffer) free(r->buffer);
-    speex_resampler_destroy(r->speex_resampler);
-    IAMF_FREE(r);
+    speex_resampler_destroy(r);
   }
 }
 
@@ -2493,33 +2494,21 @@ IAMF_StreamRenderer *iamf_stream_renderer_open(IAMF_Stream *s,
   iamf_stream_renderer_enable_downmix(sr);
   iamf_stream_renderer_update_info(sr, mp, frame_size);
 
-#if ENABLE_HOA_TO_BINAURAL || ENABLE_MULTICHANNEL_TO_BINAURAL
+#if DISABLE_BINAURALIZER == 0
+  ChannelLayerContext *ctx = (ChannelLayerContext *)s->priv;
   if (s->final_layout) {
     sr->renderer.layout = &s->final_layout->sp;
     if (s->final_layout->layout.type == IAMF_LAYOUT_TYPE_BINAURAL) {
       if (s->scheme == AUDIO_ELEMENT_TYPE_CHANNEL_BASED) {
-#if ENABLE_MULTICHANNEL_TO_BINAURAL
-        ChannelLayerContext *ctx = (ChannelLayerContext *)s->priv;
         uint32_t in_layout = iamf_layer_layout_get_rendering_id(ctx->layout);
         IAMF_element_renderer_init_M2B(&sr->renderer.layout->binaural_f,
                                        in_layout, s->element_id, frame_size,
                                        s->sampling_rate);
-#else
-        ia_loge(
-            "Channel based audio but multichannel to binaural disabled, use "
-            "default rendering");
-#endif
       } else if (s->scheme == AUDIO_ELEMENT_TYPE_SCENE_BASED) {
-#if ENABLE_HOA_TO_BINAURAL
         int in_channels = s->nb_channels;
         IAMF_element_renderer_init_H2B(&sr->renderer.layout->binaural_f,
                                        in_channels, s->element_id, frame_size,
                                        s->sampling_rate);
-#else
-        ia_loge(
-            "Scene based audio but HOA to binaural disabled, use default "
-            "rendering");
-#endif
       }
     }
   }
@@ -2532,22 +2521,18 @@ void iamf_stream_renderer_close(IAMF_StreamRenderer *sr) {
 
   if (sr->downmixer) DMRenderer_close(sr->downmixer);
 
-#if ENABLE_HOA_TO_BINAURAL || ENABLE_MULTICHANNEL_TO_BINAURAL
+#if DISABLE_BINAURALIZER == 0
   IAMF_Stream *s = sr->stream;
   if (s->final_layout &&
       s->final_layout->layout.type == IAMF_LAYOUT_TYPE_BINAURAL) {
     if (s->scheme == AUDIO_ELEMENT_TYPE_CHANNEL_BASED) {
-#if ENABLE_MULTICHANNEL_TO_BINAURAL
       IAMF_element_renderer_deinit_M2B(&sr->renderer.layout->binaural_f,
                                        s->element_id);
       ia_logd("deinit M2B");
-#endif
     } else if (s->scheme == AUDIO_ELEMENT_TYPE_SCENE_BASED) {
-#if ENABLE_HOA_TO_BINAURAL
       IAMF_element_renderer_deinit_H2B(&sr->renderer.layout->binaural_f,
                                        s->element_id);
       ia_logd("deinit H2B");
-#endif
     }
   }
 #endif
@@ -2592,7 +2577,7 @@ static int iamf_stream_render(IAMF_StreamRenderer *sr, float *in, float *out,
   for (int i = 0; i < inchs; ++i) sin[i] = &in[frame_size * i];
 
   if (stream->scheme == AUDIO_ELEMENT_TYPE_CHANNEL_BASED) {
-#if ENABLE_MULTICHANNEL_TO_BINAURAL
+#if DISABLE_BINAURALIZER == 0
     if (stream->final_layout->layout.type == IAMF_LAYOUT_TYPE_BINAURAL &&
         sr->headphones_rendering_mode == 1) {
       IAMF_element_renderer_render_M2B(&sr->renderer.layout->binaural_f,
@@ -2633,7 +2618,7 @@ static int iamf_stream_render(IAMF_StreamRenderer *sr, float *in, float *out,
       IAMF_element_renderer_render_M2M(&m2m, sin, sout, frame_size);
     }
   } else if (stream->scheme == AUDIO_ELEMENT_TYPE_SCENE_BASED) {
-#if ENABLE_HOA_TO_BINAURAL
+#if DISABLE_BINAURALIZER == 0
     if (stream->final_layout->layout.type == IAMF_LAYOUT_TYPE_BINAURAL) {
       IAMF_element_renderer_render_H2B(&sr->renderer.layout->binaural_f,
                                        stream->element_id, sin, sout,
@@ -2664,7 +2649,7 @@ static int iamf_stream_render(IAMF_StreamRenderer *sr, float *in, float *out,
 #endif
 
       IAMF_element_renderer_render_H2M(&h2m, sin, sout, frame_size, plfe);
-#if ENABLE_HOA_TO_BINAURAL
+#if DISABLE_BINAURALIZER == 0
     }
 #endif
   }
@@ -2832,8 +2817,7 @@ uint32_t iamf_decoder_internal_read_descriptors_OBUs(IAMF_DecoderHandle handle,
     rsize = ret;
     ia_logt("consume size %d, obu type (%d) %s", ret, obu.type,
             IAMF_OBU_type_string(obu.type));
-    if ((obu.redundant && !(~handle->ctx.flags & IAMF_FLAG_DESCRIPTORS)) ||
-        IAMF_OBU_is_reserved_OBU(&obu)) {
+    if (obu.redundant && !(~handle->ctx.flags & IAMF_FLAG_DESCRIPTORS)) {
       pos += rsize;
       continue;
     }
@@ -3235,7 +3219,7 @@ static int iamf_decoder_enable_mix_presentation(IAMF_DecoderHandle handle,
             pi->value.mix_gain.default_mix_gain, gain_db,
             sub->output_mix_config.gain.mix_gain & U16_MASK);
   }
-  IAMF_Resampler *resampler = 0;
+  SpeexResamplerState *resampler = 0;
   if (old) {
     resampler = iamf_presentation_take_resampler(old);
   }
@@ -3274,30 +3258,29 @@ static int iamf_loudness_process(float *block, int frame_size, int channels,
   return IAMF_OK;
 }
 
-static int iamf_resample(IAMF_Resampler *resampler, float *in, float *out,
+static int iamf_resample(SpeexResamplerState *resampler, float *in, float *out,
                          int frame_size) {
-  SpeexResamplerState *speex_resampler = resampler->speex_resampler;
   int resample_size =
-      frame_size * (speex_resampler->out_rate / speex_resampler->in_rate + 1);
+      frame_size * (resampler->out_rate / resampler->in_rate + 1);
   ia_logt("input samples %d", frame_size);
   if (resampler->rest_flag == 2) {
-    resample_size = speex_resampler_get_output_latency(speex_resampler);
-    int input_size = speex_resampler_get_input_latency(speex_resampler);
+    resample_size = speex_resampler_get_output_latency(resampler);
+    int input_size = speex_resampler_get_input_latency(resampler);
     speex_resampler_process_interleaved_float(
-        speex_resampler, (const float *)NULL, (uint32_t *)&input_size,
-        (float *)in, (uint32_t *)&resample_size);
+        resampler, (const float *)NULL, (uint32_t *)&input_size, (float *)in,
+        (uint32_t *)&resample_size);
   } else {
     ia_decoder_plane2stride_out_float(resampler->buffer, in, frame_size,
-                                      speex_resampler->nb_channels);
+                                      resampler->nb_channels);
     speex_resampler_process_interleaved_float(
-        speex_resampler, (const float *)resampler->buffer,
-        (uint32_t *)&frame_size, (float *)in, (uint32_t *)&resample_size);
+        resampler, (const float *)resampler->buffer, (uint32_t *)&frame_size,
+        (float *)in, (uint32_t *)&resample_size);
   }
   if (!resampler->rest_flag) {
     resampler->rest_flag = 1;
   }
   ia_decoder_stride2plane_out_float(out, in, resample_size,
-                                    speex_resampler->nb_channels);
+                                    resampler->nb_channels);
   ia_logt("read samples %d, output samples %d", frame_size, resample_size);
   return resample_size;
 }
@@ -3311,7 +3294,7 @@ static int iamf_resample(IAMF_Resampler *resampler, float *in, float *out,
 static int iamf_delay_buffer_handle(IAMF_DecoderHandle handle, void *pcm) {
   IAMF_DecoderContext *ctx = &handle->ctx;
   IAMF_Presentation *pst = ctx->presentation;
-  IAMF_Resampler *resampler = pst->resampler;
+  SpeexResamplerState *resampler = pst->resampler;
   AudioEffectPeakLimiter *limiter = handle->limiter;
   int frame_size = limiter ? limiter->delaySize : 0;
   int buffer_size = ctx->info.max_frame_size * ctx->output_layout->channels;
@@ -3329,12 +3312,12 @@ static int iamf_delay_buffer_handle(IAMF_DecoderHandle handle, void *pcm) {
   }
 
   if (resampler) {
-    resampler->rest_flag = 2;
-    int resample_size = iamf_resample(resampler, in, out, 0);
+    pst->resampler->rest_flag = 2;
+    int resample_size = iamf_resample(pst->resampler, in, out, 0);
     frame_size += resample_size;
     swap((void **)&in, (void **)&out);
     memset(out, 0, sizeof(float) * buffer_size);
-    for (int c = 0; c < resampler->speex_resampler->nb_channels; c++) {
+    for (int c = 0; c < resampler->nb_channels; c++) {
       memcpy(out + c * frame_size, in + c * resample_size,
              sizeof(float) * resample_size);
     }
@@ -3363,7 +3346,7 @@ static int iamf_decoder_internal_decode(IAMF_DecoderHandle handle,
   IAMF_StreamRenderer *renderer;
   IAMF_Stream *stream;
   IAMF_Mixer *mixer = &pst->mixer;
-  IAMF_Resampler *resampler = pst->resampler;
+  SpeexResamplerState *resampler = pst->resampler;
   Frame *f;
   int ret = 0, lret = 1;
   uint32_t r = 0;
@@ -3525,7 +3508,8 @@ static int iamf_decoder_internal_decode(IAMF_DecoderHandle handle,
                                          pst->streams[0]->sampling_rate);
 
     if (resampler) {
-      real_frame_size = iamf_resample(resampler, f->data, out, real_frame_size);
+      real_frame_size =
+          iamf_resample(pst->resampler, f->data, out, real_frame_size);
       swap((void **)&f->data, (void **)&out);
     }
 

@@ -73,7 +73,6 @@ enum MOV_ATOM_TYPE {
 
 static int mov_read_trak(mp4r_t *mp4r, int size);
 static int mov_read_iamf(mp4r_t *mp4r, int size);
-static int mov_read_iacb(mp4r_t *mp4r, int size);
 static int mov_read_edts(mp4r_t *mp4r, int size);
 static int mov_read_elst(mp4r_t *mp4r, int size);
 static int mov_read_tkhd(mp4r_t *mp4r, int size);
@@ -127,8 +126,6 @@ static avio_context atoms_edts[] = {
 
 static avio_context atoms_iamf[] = {
     {MOV_ATOM_NAME, "iamf"}, {MOV_ATOM_DATA, mov_read_iamf}, {0}};
-static avio_context atoms_iacb[] = {
-    {MOV_ATOM_NAME, "iacb"}, {MOV_ATOM_DATA, mov_read_iacb}, {0}};
 
 static int parse(mp4r_t *mp4r, uint32_t *sizemax);
 
@@ -177,21 +174,6 @@ static int avio_r8_(mp4r_t *mp4r) {
   FILE *fin = mp4r->fin;
   uint8_t val;
   avio_rdata(fin, &val, 1);
-  return val;
-}
-
-#define avio_leb128() avio_leb128_(mp4r)
-uint64_t avio_leb128_(mp4r_t *mp4r) {
-  FILE *fin = mp4r->fin;
-  uint64_t val = 0;
-  uint64_t byte = 0;
-  for (int i = 0; i < 8; i++) {
-    avio_rdata(fin, &byte, 1);
-    val |= ((byte & 0x7f) << (i * 7));
-    if (!(byte & 0x80)) {
-      break;
-    }
-  }
   return val;
 }
 
@@ -525,6 +507,10 @@ int mov_read_iamf(mp4r_t *mp4r, int size) {
 #endif
 
   int sel_a_trak;
+  int offset;
+  int tag;
+  void *csc;
+  IAMFHeader *header;
 
   sel_a_trak = mp4r->sel_a_trak;
   audio_rtr_t *atr = mp4r->a_trak;
@@ -542,38 +528,6 @@ int mov_read_iamf(mp4r_t *mp4r, int size) {
   avio_rb16();                         // predefined
   avio_rb16();                         // reserved
   avio_rb32();                         // sample_rate
-  STASH_ATOM();
-  atom_seek_parse(mp4r, ftell(mp4r->fin), size - 28, atoms_iacb);
-  RESTORE_ATOM();
-  return size;
-}
-
-int mov_read_iacb(mp4r_t *mp4r, int size) {
-#if SUPPORT_VERIFIER
-  char *atom_d = (char *)malloc(size);
-  int fpos;
-  fpos = ftell(mp4r->fin);
-  avio_rdata(mp4r->fin, atom_d, size);
-  fseek(mp4r->fin, fpos, SEEK_SET);
-  vlog_atom(MP4BOX_IACB, atom_d, size, fpos - 8);
-  free(atom_d);
-#endif
-
-  int pos = ftell(mp4r->fin);
-  uint32_t configurationVersion;
-  uint64_t configOBUs_size;
-  configurationVersion = avio_r8();
-  if (configurationVersion != 1) {
-    fseek(mp4r->fin, pos + size, SEEK_SET);
-    return size;
-  }
-  configOBUs_size = avio_leb128();
-
-  int sel_a_trak;
-  void *csc;
-  IAMFHeader *header;
-  sel_a_trak = mp4r->sel_a_trak;
-  audio_rtr_t *atr = mp4r->a_trak;
 
   csc = atr[sel_a_trak].csc;
   atr[sel_a_trak].csc = _drealloc(
@@ -590,17 +544,17 @@ int mov_read_iacb(mp4r_t *mp4r, int size) {
   header = (IAMFHeader *)atr[sel_a_trak].csc;
   int idx = atr[sel_a_trak].csc_count - 1;
 
-  header[idx].description_length = configOBUs_size;
+  int codec_size = size - 28;
+  header[idx].description_length = codec_size;
   header[idx].description =
       _dmalloc(header->description_length, __FILE__, __LINE__);
   avio_rdata(mp4r->fin, header[idx].description,
              header[idx].description_length);
 
-  if (configOBUs_size > atr[sel_a_trak].csc_maxsize)
-    atr[sel_a_trak].csc_maxsize = configOBUs_size;
+  if (codec_size > atr[sel_a_trak].csc_maxsize)
+    atr[sel_a_trak].csc_maxsize = codec_size;
   /* fprintf(stderr, "* IAMF description %d length %d\n", idx, */
   /* header[idx].description_length); */
-  fseek(mp4r->fin, pos + size, SEEK_SET);
 
   return size;
 }
@@ -1001,6 +955,7 @@ static int mov_read_trun(mp4r_t *mp4r, int size) {
 #endif
   int cnt;
   uint32_t vf;
+  uint32_t sample_size;
   uint32_t sample_count;
   uint32_t offset = 0;
 
@@ -1159,6 +1114,9 @@ static avio_context g_head[] = {
 static avio_context g_moov[] = {
     {MOV_ATOM_NAME, "moov"}, {MOV_ATOM_DATA, mov_read_moov}, {0}};
 
+static avio_context moov_probe[] = {
+    {MOV_ATOM_NAME, "moov"}, {MOV_ATOM_DATA, mov_moov_probe}, {0}};
+
 static avio_context moof_probe[] = {
     {MOV_ATOM_NAME, "moof"}, {MOV_ATOM_DATA, mov_moof_probe}, {0}};
 
@@ -1241,6 +1199,7 @@ int mov_read_moov(mp4r_t *mp4r, int sizemax) {
   uint32_t atomsize;
   avio_context *old_atom = mp4r->atom;
   int err, ret = sizemax;
+  int ntrack = 0;
 
 #if SUPPORT_VERIFIER
   char *atom_d = (char *)malloc(sizemax);
@@ -1285,6 +1244,7 @@ int mov_read_moov(mp4r_t *mp4r, int sizemax) {
 static int mp4demux_clean_tracks(mp4r_t *mp4r);
 int mp4demux_audio(mp4r_t *mp4r, int trakn, int *delta) {
   audio_rtr_t *atr = mp4r->a_trak;
+  int ret = 0, atomsize;
   int idx = atr[trakn].frame.current - atr[trakn].frame.ents_offset;
 
   if (idx > atr[trakn].frame.ents) {
@@ -1325,6 +1285,7 @@ int mp4demux_parse(mp4r_t *mp4r, int trak) {
     int atomsize = INT_MAX;
     int ret;
     uint64_t pos = ftell(mp4r->fin);
+    uint64_t next_moov = 0;
     uint64_t size;
 
     fseek(mp4r->fin, 0, SEEK_END);
@@ -1334,6 +1295,14 @@ int mp4demux_parse(mp4r_t *mp4r, int trak) {
     fprintf(stderr, "Warning: pos %" PRIu64 ", file size %" PRIu64 "\n", pos,
             size);
     fseek(mp4r->fin, pos, SEEK_SET);
+
+#if 0
+    mp4r->atom = moov_probe;
+    if (parse(mp4r, &atomsize) < 0) {
+      mp4r->next_moov = (uint64_t)-1;
+    }
+    fseek(mp4r->fin, pos, SEEK_SET);
+#endif
 
     atomsize = INT_MAX;
     mp4r->atom = moof_probe;

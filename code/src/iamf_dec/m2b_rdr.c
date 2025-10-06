@@ -39,7 +39,11 @@ This software module is out of scope and not part of the IAMF Final Deliverable.
 
 #include "ae_rdr.h"
 
-#if ENABLE_MULTICHANNEL_TO_BINAURAL
+#ifndef DISABLE_BINAURALIZER
+#define DISABLE_BINAURALIZER 1
+#endif
+
+#if DISABLE_BINAURALIZER == 0
 #if defined(__linux__) || defined(__APPLE__)
 #else
 #pragma comment(lib, "iamf2bear.lib")
@@ -108,9 +112,9 @@ int IAMF_element_renderer_render_M2B(binaural_filter_t* binaural_f,
     for (i = 0; i < N_SOURCE_ELM; i++) {
       if (binaural_f->m2b_elm_id[i] == elm_id) {
         SetBearDirectSpeakerChannel(binaural_f->m2b_api,
-                                    binaural_f->m2b_source_id[i], sin);
+                                    binaural_f->m2b_source_id[i], in);
         GetBearRenderedAudio(binaural_f->m2b_api, binaural_f->m2b_source_id[i],
-                             sout);
+                             out);
         return 0;
       }
     }

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.6)
 project (iamf)
 message(STATUS "start build iamf")
 
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -Werror=unused-variable")
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 SET(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(BUILD_SHARED_LIBS "Build shared library" ON)
@@ -23,18 +23,11 @@ if (SUPPORT_VERIFIER)
 endif()
 
 option(CODEC_CAP "Codec capability check" ON)
-option(MULTICHANNEL_BINAURALIZER "Enable multichannel binaural rendering" OFF)
-option(HOA_BINAURALIZER "Enable HOA binaural rendering" OFF)
+option(BINAURALIZER "Enable binaural rendering" OFF)
 
-
-if(MULTICHANNEL_BINAURALIZER)
-  message(STATUS "Enable multichannel binaural rendering")
-  add_definitions(-DENABLE_MULTICHANNEL_TO_BINAURAL=1)
-endif()
-
-if(HOA_BINAURALIZER)
-  message(STATUS "Enable HOA binaural rendering")
-  add_definitions(-DENABLE_HOA_TO_BINAURAL=1)
+if(BINAURALIZER)
+  message(STATUS "Enable binaural rendering")
+  add_definitions(-DDISABLE_BINAURALIZER=0)
 endif()
 
 if(CODEC_CAP)
@@ -146,7 +139,7 @@ else()
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_PREFIX}/include/iamf)
 endif()
 
-if(MULTICHANNEL_BINAURALIZER OR HOA_BINAURALIZER)
+if(BINAURALIZER)
   install(DIRECTORY ${EXTER_LIB_DIR}/binaural
         DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
 endif()

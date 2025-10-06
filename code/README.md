@@ -57,10 +57,10 @@ form of a makefile build is the following:
 ### Configuration options
 
 The IAMF library has few configuration options, There are one option which is used to enable binaural rendering:
-    Build binaural rendering configuration options. These have the form `MULTICHANNEL_BINAURALIZER` and `HOA_BINAURALIZER`.
+    Build binaural rendering configuration options. These have the form `BINAURALIZER`.  
 	(If binaural rendering is not enabled, there is no need to provide external libraries)
 ~~~
-    $ cmake ./ -DMULTICHANNEL_BINAURALIZER=ON -DHOA_BINAURALIZER=ON
+    $ cmake ./ -DBINAURALIZER=ON
     $ make
 ~~~
 
@@ -121,7 +121,7 @@ The iamfplayer is a test application to decode an IAMF bitstream or mp4 file wit
 
     $ cmake -DCMAKE_INSTALL_PREFIX=${BUILD_LIBS} .
     # ${BUILD_LIBS} is the iamf library and header files installing directory.
-    # If enable binaural rendering, add option `MULTICHANNEL_BINAURALIZER` and `HOA_BINAURALIZER`
+    # If enable binaural rendering, add option `BINAURALIZER`
 
     $ make
 ~~~
@@ -170,7 +170,7 @@ We are using the Google C Coding Style defined by the
 
 The coding style used by this project is enforced with clang-format using the
 configuration contained in the
-[.clang-format](.clang-format)
+[.clang-format](https://chromium.googlesource.com/webm/aom/+/main/.clang-format)
 file in the root of the repository.
 
 Before pushing changes for review you can format your code with:

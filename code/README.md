@@ -11,7 +11,6 @@ README.md
     - [Dylib builds](#Dylib-builds)
     - [Cross compiling](#Cross-compiling)
     - [MSVC builds](#Microsoft-Visual-Studio-builds)
-    - [MacOS builds](#MacOS-builds)
 2. [Testing the library](#Testing-the-IAMF)
     - [Build application](#1-Build-application)
     - [Decoder tests](#2-Decoder-tests)
@@ -42,7 +41,7 @@ repository:
 ### Basic build
 
 "build.sh" is an example to build, you can run it directly at your side.  
-(dependent [codec libraries](dep_codecs/lib) and [external libraries](dep_external/lib/binaural) complied under x64 linux have been provided in advance)
+(dependent codec libraries and external libriaries complied under x64 linux have been provided in advance)
 
 CMake replaces the configure step typical of many projects. Running CMake will
 produce configuration and build files for the currently selected CMake
@@ -57,8 +56,7 @@ form of a makefile build is the following:
 ### Configuration options
 
 The IAMF library has few configuration options, There are one option which is used to enable binaural rendering:
-    Build binaural rendering configuration options. These have the form `BINAURALIZER`.  
-	(If binaural rendering is not enabled, there is no need to provide external libraries)
+    Build binaural rendering configuration options. These have the form `BINAURALIZER`.
 ~~~
     $ cmake ./ -DBINAURALIZER=ON
     $ make
@@ -85,7 +83,7 @@ The toolchain files available at the time of this writing are:
  - x86_64-mingw.cmake
  - x86-macos.cmake
 
-Please note that all [dependent codecs](dep_codecs/README.md) and [dependent externals](dep_external/src/binaural/README.md) should have been cross compiled already.
+Please note that all [dependent codecs](dep_codecs/README.md) and [external libraries](dep_external/README.md) should have been cross compiling already.
 
 The following example demonstrates use of the x86-macos.cmake toolchain file on
 a x86\_64 MacOS host:
@@ -101,14 +99,6 @@ Building the IAMF library in Microsoft Visual Studio is supported. Visual
 Studio 2015 (14.0) solution has been provided.
 
 Open win32/VS2015/iamf.sln directly.
-
-### MacOS builds
-Please note that all [dependent codecs](dep_codecs/README.md) and [dependent externals](dep_external/src/binaural/README.md) should have been MacOS compiled already.
-
-~~~
-    $ cmake .
-    $ make
-~~~
 
 ## Testing the IAMF
 

@@ -890,23 +890,21 @@ static MixGainUnit *iamf_database_parameter_get_mix_gain_unit(
   uint64_t start = 0;
   float ratio = 1.f;
   int use_default = 0;
-  uint64_t tsf_parameter_timestamp = 0;
 
   pi = iamf_database_parameter_viewer_get_item(&db->pViewer, pid);
   if (!pi) return 0;
 
-  tsf_parameter_timestamp = time_transform(pi->timestamp, pi->rate, rate);
-  ia_logd("pts %" PRIu64 ", duration %d, rate %d, parameter id %" PRIu64
-          ", pts %" PRIu64 ", duration %" PRId64 ", rate %d",
-          pt, duration, rate, pid, pi->timestamp, pi->duration, pi->rate);
-  if (pt < tsf_parameter_timestamp) {
+  ia_logd("pts %" PRIu64 ", duration %d, parameter id %" PRIu64 ", pts %" PRIu64
+          ", duration %" PRId64,
+          pt, duration, pid, pi->timestamp, pi->duration);
+  if (pt < pi->timestamp) {
     ia_logw("Don't receive mix gain parameter %" PRIu64 " at %" PRIu64
             ", current parameter at "
             "%" PRIu64,
-            pi->id, pt, tsf_parameter_timestamp);
+            pi->id, pt, pi->timestamp);
     use_default = 1;
   } else
-    start = pt - tsf_parameter_timestamp;
+    start = pt - pi->timestamp;
 
   mgu = IAMF_MALLOCZ(MixGainUnit, 1);
   if (!mgu) return 0;
@@ -2408,15 +2406,11 @@ static int iamf_stream_decoder_update_parameter(IAMF_StreamDecoder *dec,
     if (pi->type == IAMF_PARAMETER_TYPE_DEMIXING) {
       ChannelLayerContext *ctx = (ChannelLayerContext *)s->priv;
       ctx->dmx_mode = iamf_database_parameter_get_demix_mode(
-          db, pid,
-          time_transform(s->timestamp + dec->frame_size / 2, s->sampling_rate,
-                         pi->rate));
+          db, pid, s->timestamp + dec->frame_size / 2);
       ia_logd("update demix mode %d", ctx->dmx_mode);
     } else if (pi->type == IAMF_PARAMETER_TYPE_RECON_GAIN) {
       ReconGainList *recon = iamf_database_parameter_get_recon_gain_list(
-          db, pid,
-          time_transform(s->timestamp + dec->frame_size / 2, s->sampling_rate,
-                         pi->rate));
+          db, pid, s->timestamp + dec->frame_size / 2);
       ia_logd("update recon %p", recon);
       if (recon) iamf_stream_scale_decoder_update_recon_gain(dec, recon);
     }
@@ -2911,14 +2905,15 @@ void iamf_stream_renderer_close(IAMF_StreamRenderer *sr) {
 
 /**
  * @brief     Rendering an Audio Element.
+ * @param     [in] arch : architecture-specific callbacks.
  * @param     [in] sr : stream render handle.
  * @param     [in] in : input audio pcm
  * @param     [in] out : output audio pcm
  * @param     [in] frame_size : the size of audio frame.
  * @return    the number of rendering samples
  */
-static int iamf_stream_render(IAMF_StreamRenderer *sr, float *in, float *out,
-                              int frame_size) {
+static int iamf_stream_render(const Arch *arch, IAMF_StreamRenderer *sr,
+                              float *in, float *out, int frame_size) {
   IAMF_Stream *stream = sr->stream;
   int inchs;
   int outchs = stream->final_layout->channels;
@@ -2956,11 +2951,11 @@ static int iamf_stream_render(IAMF_StreamRenderer *sr, float *in, float *out,
                            frame_size - sr->offset, frame_size);
     } else {
       if (iamf_audio_layer_get_layout_info(ctx->layout)->rendering_id_in) {
-        IAMF_element_renderer_render_M2M(&sr->renderer.mmm, sin, sout,
+        IAMF_element_renderer_render_M2M(arch, &sr->renderer.mmm, sin, sout,
                                          frame_size);
       } else {
-        IAMF_element_renderer_render_M2M_custom(&sr->renderer.mmm, sin, sout,
-                                                frame_size,
+        IAMF_element_renderer_render_M2M_custom(arch, &sr->renderer.mmm, sin,
+                                                sout, frame_size,
                                                 sr->renderer.in_channel_map);
       }
     }
@@ -2973,8 +2968,8 @@ static int iamf_stream_render(IAMF_StreamRenderer *sr, float *in, float *out,
                                        frame_size);
     } else {
 #endif
-      IAMF_element_renderer_render_H2M(&sr->renderer.hmm, sin, sout, frame_size,
-                                       &sr->renderer.layout->lfe_f);
+      IAMF_element_renderer_render_H2M(arch, &sr->renderer.hmm, sin, sout,
+                                       frame_size, &sr->renderer.layout->lfe_f);
 #if ENABLE_HOA_TO_BINAURAL
     }
 #endif
@@ -3452,7 +3447,6 @@ static int iamf_decoder_timestamp_sync(IAMF_DecoderHandle handle,
   Viewer *pv = &db->pViewer;
   ParameterItem *pi;
   uint64_t ref_timestamp = timestamp;
-  uint64_t tsf_timestamp = 0;
 
   if (!timestamp) return IAMF_OK;
 
@@ -3461,14 +3455,18 @@ static int iamf_decoder_timestamp_sync(IAMF_DecoderHandle handle,
   for (int i = 0; i < pv->count; ++i) {
     pi = (ParameterItem *)pv->items[i];
     if (!pi) continue;
-    tsf_timestamp = time_transform(timestamp, rate, pi->rate);
     if (!pi->timestamp) {
-      pi->timestamp = tsf_timestamp;
+      if (pi->rate != rate) {
+        ia_logw("Difference rate between parameter (%" PRIu64
+                ") and reference ( %d vs %d )",
+                pi->id, pi->rate, rate);
+        continue;
+      }
+      pi->timestamp = timestamp;
       ia_logi("Parameter (%" PRIu64 ") timestamp sync to %" PRIu64, pi->id,
               timestamp);
       if (ref_timestamp != timestamp) {
-        iamf_parameter_item_fill_segment(
-            pi, time_transform(ref_timestamp - timestamp, rate, pi->rate));
+        iamf_parameter_item_fill_segment(pi, ref_timestamp - timestamp);
       }
     } else
       ia_logi("Parameter (%" PRIu64 ") timestamp %" PRIu64, pi->id,
@@ -3547,8 +3545,7 @@ static int iamf_decoder_enable_mix_presentation(IAMF_DecoderHandle handle,
         iamf_parameter_item_enable(pi, 1);
       else
         iamf_database_parameter_add_item(db, elem->parameters[k],
-                                         elem->element_id,
-                                         elem->parameters[k]->rate);
+                                         elem->element_id, rate);
     }
 
     pid = sub->conf_s[i].element_mix_gain.base.id;
@@ -3557,8 +3554,8 @@ static int iamf_decoder_enable_mix_presentation(IAMF_DecoderHandle handle,
     if (pi)
       iamf_parameter_item_enable(pi, 1);
     else if (iamf_database_parameter_add_item(
-                 db, &sub->conf_s[i].element_mix_gain.base, INVALID_ID,
-                 sub->conf_s[i].element_mix_gain.base.rate) == IAMF_OK) {
+                 db, &sub->conf_s[i].element_mix_gain.base, INVALID_ID, rate) ==
+             IAMF_OK) {
       float gain_db;
       pi = iamf_database_parameter_get_item(db, pid);
       gain_db = q_to_float(sub->conf_s[i].element_mix_gain.mix_gain, 8);
@@ -3585,9 +3582,9 @@ static int iamf_decoder_enable_mix_presentation(IAMF_DecoderHandle handle,
   pi = iamf_database_parameter_get_item(db, pid);
   if (pi)
     iamf_parameter_item_enable(pi, 1);
-  else if (iamf_database_parameter_add_item(
-               db, &sub->output_mix_gain.base, INVALID_ID,
-               sub->output_mix_gain.base.rate) == IAMF_OK) {
+  else if (iamf_database_parameter_add_item(db, &sub->output_mix_gain.base,
+                                            INVALID_ID,
+                                            ctx->sampling_rate) == IAMF_OK) {
     float gain_db;
     pi = iamf_database_parameter_get_item(db, pid);
     gain_db = q_to_float(sub->output_mix_gain.mix_gain, 8);
@@ -3799,7 +3796,7 @@ static int iamf_decoder_internal_decode(IAMF_DecoderHandle handle,
 
           renderer->offset = decoder->delay > 0 ? decoder->delay : 0;
           if (stream->trimming_start) renderer->offset = 0;
-          iamf_stream_render(renderer, f->data, out, ret);
+          iamf_stream_render(handle->arch, renderer, f->data, out, ret);
 
 #if SR
           // rendering

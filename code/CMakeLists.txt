@@ -8,9 +8,6 @@ SET(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(BUILD_SHARED_LIBS "Build shared library" ON)
 
-add_definitions(-DIAMF_PRIMARY_PROFILE=001)
-add_definitions(-DIAMF_ADDITIONAL_PROFILE=001)
-
 set(CODEC_LIB_DIR  "${PROJECT_SOURCE_DIR}/dep_codecs/lib")
 set(CODEC_INCLUDE_DIR  "${PROJECT_SOURCE_DIR}/dep_codecs/include")
 set(EXTER_LIB_DIR  "${PROJECT_SOURCE_DIR}/dep_external/lib")
@@ -131,6 +128,7 @@ if(BUILD_SHARED_LIBS)
   if(HOA_BINAURALIZER)
     target_link_libraries (${PROJECT_NAME} iamf2resonance)
   endif()
+  target_link_libraries (${PROJECT_NAME} m)
 else()
   add_library(${PROJECT_NAME} STATIC ${DIR_DEP_EXTERNAL_WAV} ${DIR_IAMF_COMMON}
     ${DIR_IAMF_DEC_OPUS} ${DIR_IAMF_DEC_AAC} ${DIR_IAMF_DEC_PCM}

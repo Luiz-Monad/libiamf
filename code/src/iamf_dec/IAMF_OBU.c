@@ -969,8 +969,6 @@ void iamf_mix_presentation_free(IAMF_MixPresentation *obj) {
         free(sub->conf_s);
       }
 
-      IAMF_FREE(sub->output_mix_config.gain.base.segments);
-
       if (sub->layouts) {
         for (int i = 0; i < sub->num_layouts; ++i) {
           free(sub->layouts[i]);

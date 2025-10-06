@@ -20,27 +20,8 @@
 #ifndef ARCH_H_
 #define ARCH_H_
 
-#include <stdint.h>
-
 typedef struct ArchCallbacks {
   // Functions with possible architecture-specific optimizations
-  struct {
-    void (*multiply_channels_by_matrix)(float *mat, int in_dim, int in_next,
-                                        int *in_idx_map, int out_dim,
-                                        int out_next, float **in, float **out,
-                                        int nsamples);
-  } rendering;
-  struct {
-    void (*float2int16_zip_channels)(const float *src, int next_channel,
-                                     int channels, int16_t *int16_dst,
-                                     int nsamples);
-    void (*float2int24_zip_channels)(const float *src, int next_channel,
-                                     int channels, uint8_t *int24_dst,
-                                     int nsamples);
-    void (*float2int32_zip_channels)(const float *src, int next_channel,
-                                     int channels, int32_t *int32_dst,
-                                     int nsamples);
-  } output;
 } Arch;
 
 Arch *arch_create();

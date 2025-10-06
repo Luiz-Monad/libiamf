@@ -111,7 +111,6 @@ typedef struct {
     int size;
     uint8_t *data;
   } bitbuf;  // bitstream buffer
-  uint32_t bitbuf_size;
 
 } audio_rtr_t;
 

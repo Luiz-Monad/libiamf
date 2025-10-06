@@ -46,9 +46,11 @@ void arch_init(Arch* arch) {
   memset(arch, 0x0, sizeof(Arch));
 
   // Fill with reference implementations
+  arch->rendering.multiply_channels_by_matrix = &multiply_channels_by_matrix_c;
 
-  // arch->myfn = &myfn_c; // myfn_c is in arch_common.h/.c
-  // TODO: Remove these lines when first function added!
+  arch->output.float2int16_zip_channels = &float2int16_zip_channels_c;
+  arch->output.float2int24_zip_channels = &float2int24_zip_channels_c;
+  arch->output.float2int32_zip_channels = &float2int32_zip_channels_c;
 
 #if defined(HAS_ARCH_OVERRIDE)
   // Override with platform-specific functions, if available

@@ -40,7 +40,8 @@ This software module is out of scope and not part of the IAMF Final Deliverable.
 #include "ae_rdr.h"
 
 #if ENABLE_HOA_TO_BINAURAL
-#if defined(_WIN32)
+#if defined(__linux__) || defined(__APPLE__)
+#else
 #pragma comment(lib, "iamf2resonance.lib")
 #endif
 #include "resonance/iamf_resonance_api.h"

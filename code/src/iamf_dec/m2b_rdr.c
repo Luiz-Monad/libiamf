@@ -40,7 +40,8 @@ This software module is out of scope and not part of the IAMF Final Deliverable.
 #include "ae_rdr.h"
 
 #if ENABLE_MULTICHANNEL_TO_BINAURAL
-#if defined(_WIN32)
+#if defined(__linux__) || defined(__APPLE__)
+#else
 #pragma comment(lib, "iamf2bear.lib")
 #endif
 #include "bear/iamf_bear_api.h"

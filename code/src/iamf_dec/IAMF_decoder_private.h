@@ -102,9 +102,9 @@ typedef struct ParameterItem {
   uint64_t elapse;
   uint64_t parent_id;
   int rate;
-  int enabled;
 
-  IAMF_ParameterParam param;
+  ParameterBase *param_base;
+
   ParameterValue value;
 } ParameterItem;
 
@@ -114,9 +114,10 @@ typedef struct ElementItem {
   IAMF_CodecConf *codecConf;
   IAMF_Element *element;
 
-  uint64_t demixingPid;
-  uint64_t reconGainPid;
-  uint64_t mixGainPid;
+  ParameterItem *demixing;
+  ParameterItem *reconGain;
+  ParameterItem *mixGain;
+
 } ElementItem;
 
 typedef void (*free_tp)(void *);
@@ -161,7 +162,7 @@ typedef struct IAMF_ReconGain {
 } IAMF_ReconGain;
 
 typedef struct SubLayerConf {
-  uint32_t layout;
+  uint8_t layout;
   uint8_t nb_channels;
   uint8_t nb_substreams;
   uint8_t nb_coupled_substreams;
@@ -174,7 +175,6 @@ typedef struct ChannelLayerContext {
   int nb_layers;
   SubLayerConf *conf_s;
 
-  int is_scaleable_stream;
   int layer;
   int layout;
   int channels;
@@ -275,10 +275,9 @@ typedef struct IAMF_StreamRenderer {
   struct {
     IAMF_SP_LAYOUT *layout;
     union {
-      struct m2m_rdr_t mmm;
-      struct h2m_rdr_t hmm;
+      struct m2m_rdr_t mr;
+      struct h2m_rdr_t hr;
     };
-    int in_channel_map[IA_CH_LAYOUT_MAX_CHANNELS];
   } renderer;
 } IAMF_StreamRenderer;
 

@@ -249,8 +249,6 @@ int write_postfix(LOG_TYPE type, char* buf) {
     case LOG_DECOP:
       len = sprintf(buf, "##\n");
       break;
-    default:
-      break;
   }
 
   return len;

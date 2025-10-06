@@ -207,7 +207,6 @@ typedef struct ChannelLayerConf {
   uint8_t nb_substreams;
   uint8_t nb_coupled_substreams;
   OutputGain *output_gain_info;
-  uint8_t expanded_loudspeaker_layout;
 } ChannelLayerConf;
 
 struct ScalableChannelLayoutConf {
@@ -234,26 +233,16 @@ typedef struct SubMixPresentation SubMixPresentation;
 #define TARGET_LAYOUT(a) ((TargetLayout *)(a))
 #define SOUND_SYSTEM_LAYOUT(a) ((SoundSystemLayout *)(a))
 
-#define STRING_SIZE 128
-
-typedef struct Tag {
-  char name[STRING_SIZE];
-  char value[STRING_SIZE];
-} Tag;
-
 typedef struct IAMF_MixPresentation {
   IAMF_Object obj;
 
   uint64_t mix_presentation_id;
   uint64_t num_labels;
-  char **annotations_language;
-  char **localized_presentation_annotations;
+  char **language;
+  char **mix_presentation_friendly_label;
 
   uint64_t num_sub_mixes;
   SubMixPresentation *sub_mixes;
-
-  uint8_t num_name_value_tags;
-  Tag *tags;
 } IAMF_MixPresentation;
 
 typedef struct TargetLayout {
@@ -279,18 +268,26 @@ typedef struct ElementRenderingConf {
   uint32_t rendering_config_extension_size;
 } ElementRenderingConf;
 
+typedef struct ElementMixConf {
+  MixGainParameter gain;
+} ElementMixConf;
+
 typedef struct ElementConf {
   uint64_t element_id;
-  char **localized_element_annotations;
+  char **audio_element_friendly_label;
   ElementRenderingConf conf_r;
-  MixGainParameter element_mix_gain;
+  ElementMixConf conf_m;
 } ElementConf;
+
+typedef struct OutputMixConf {
+  MixGainParameter gain;
+} OutputMixConf;
 
 struct SubMixPresentation {
   uint64_t nb_elements;
   ElementConf *conf_s;
 
-  MixGainParameter output_mix_gain;
+  OutputMixConf output_mix_config;
 
   uint64_t num_layouts;
   TargetLayout **layouts;

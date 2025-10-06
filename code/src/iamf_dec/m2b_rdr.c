@@ -50,6 +50,7 @@ This software module is out of scope and not part of the IAMF Final Deliverable.
 #endif
 #include "bear/iamf_bear_api.h"
 // Multichannel to Binaural Renderer(BEAR)
+// **yj_son
 void IAMF_element_renderer_init_M2B(binaural_filter_t* binaural_f,
                                     uint32_t in_layout, uint64_t elm_id,
                                     int frame_size, int sample_rate) {
@@ -121,4 +122,5 @@ int IAMF_element_renderer_render_M2B(binaural_filter_t* binaural_f,
   }
   return -1;
 }
+// yj_son**
 #endif
